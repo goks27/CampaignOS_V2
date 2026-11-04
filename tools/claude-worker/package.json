@@ -1,0 +1,9 @@
+{
+  "name": "campaignos-claude-worker",
+  "private": true,
+  "type": "module",
+  "description": "Bridge that lets Claude Code act as the CampaignOS AI worker",
+  "dependencies": {
+    "pdfjs-dist": "4.10.38"
+  }
+}

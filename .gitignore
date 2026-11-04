@@ -14,3 +14,4 @@ services/local-ai-worker/benchmark-output/
 supabase/.temp/
 supabase/.branches/
 .DS_Store
+tools/claude-worker/work/

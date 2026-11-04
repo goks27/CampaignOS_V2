@@ -40,6 +40,13 @@ AI does the analysis, the manager makes the decision, the team executes the corr
 - No OpenAI, Anthropic or other metered AI APIs, and no silent cloud fallback. If the worker or model is offline, jobs stay queued and the UI says so.
 - Edge Functions only where Postgres functions cannot do the job.
 
+### Interim worker: Claude Code (decided by Gokul, 4 Nov 2026)
+Until Python and Ollama are set up on the PC, a Claude Code session may act as the worker through `tools/claude-worker/`.
+- It uses the same worker identity, queue functions, validation rules and result format as the Python worker (see the Worker identity section). It uses a Claude Code session, not an API key. No Anthropic or OpenAI API is called by any code in this repo.
+- It supports `sow_analysis`, `sow_vs_design` and `design_consistency`. Staging reviews (Playwright) stay with the Python worker.
+- It only runs while a session is open and asked to process the queue. Jobs wait in the queue otherwise. Everything it writes is a draft for a manager; it never approves anything.
+- Jobs it completes record `model = "Claude Code"`. The Ollama architecture below remains the target for unattended running.
+
 ## Worker identity and permissions
 - The worker does NOT use the Supabase service-role key.
 - It signs in as a dedicated Supabase Auth user with the `worker` role. Credentials live in the worker's local `.env`, never in the repo.
