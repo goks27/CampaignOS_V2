@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.local
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+services/local-ai-worker/.env
+services/local-ai-worker/cache/
+services/local-ai-worker/benchmark-output/
+supabase/.temp/
+supabase/.branches/
+.DS_Store
