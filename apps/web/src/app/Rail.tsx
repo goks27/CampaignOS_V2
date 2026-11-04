@@ -46,7 +46,7 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
           <NavLink key={n.to} to={n.to} end={n.end} className={item} title={collapsed ? n.label : undefined}>
             <n.icon className="size-4 shrink-0" />
             {!collapsed && <span className="flex-1">{n.label}</span>}
-            {n.badge ? <span className={cn("rounded-full bg-accent px-1.5 text-[11px] font-semibold text-on-accent num", collapsed && "absolute right-1 top-0.5 px-1 text-[10px]")}>{n.badge > 99 ? "99+" : n.badge}</span> : null}
+            {n.badge ? <span className={cn("rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num", collapsed && "absolute right-1 top-0.5 px-1 text-[10px]")}>{n.badge > 99 ? "99+" : n.badge}</span> : null}
           </NavLink>
         ))}
       </nav>

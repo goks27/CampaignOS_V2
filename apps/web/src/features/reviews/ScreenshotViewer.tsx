@@ -50,7 +50,7 @@ export function ScreenshotViewer({ bucket, path, title, overlays, onPrev, onNext
                 aria-label={o.active ? "Selected finding region (approximate)" : `Other finding: ${o.label ?? ""}`}
                 className={cn("absolute rounded-sm", o.active ? "border-2 border-accent bg-accent/10" : "border border-dashed border-text/30 hover:border-text/60")}
                 style={{ left: `${o.region.x * 100}%`, top: `${o.region.y * 100}%`, width: `${o.region.w * 100}%`, height: `${o.region.h * 100}%` }}>
-                {o.active && <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-accent px-1 text-[10px] font-medium text-on-accent">approximate</span>}
+                {o.active && <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-accent px-1 text-[10px] font-medium text-[rgb(var(--on-accent))]">approximate</span>}
               </button>
             ))}
           </div>
