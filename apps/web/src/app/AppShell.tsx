@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid, FolderKanban, ListChecks, Sparkles, Users, CalendarRange, BarChart3, Settings, Search, Moon, Sun,
-  Bell, ChevronDown, LogOut, ChevronRight, Upload, Sparkles as SparklesIcon,
+  Bell, ChevronDown, LogOut, ChevronRight, Upload, Sparkles as SparklesIcon, FlaskConical,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -26,6 +26,7 @@ const NAV = [
   { to: "/campaigns", label: "Campaigns", icon: FolderKanban },
   { to: "/tasks", label: "Tasks & Feedback", icon: ListChecks },
   { to: "/reviews", label: "AI Reviews", icon: Sparkles },
+  { to: "/playground", label: "Playground", icon: FlaskConical },
   { to: "/team", label: "Team", icon: Users },
   { to: "/timeline", label: "Timeline", icon: CalendarRange },
   { to: "/reports", label: "Reports", icon: BarChart3 },

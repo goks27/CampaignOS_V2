@@ -81,6 +81,8 @@ Persistent left sidebar:
 
 Clean, professional, Linear-inspired interface (see `docs/DESIGN.md`): compact navigation, clear typography, minimal clutter, neutral backgrounds, subtle borders, restrained status colours, fast interactions, desktop-first and responsive. Not a generic admin dashboard with excessive cards.
 
+> **Update 4 Nov 2026 (Gokul):** a campaign opens as one canvas (SOW, requirements, designs, build, findings, tasks as connected cards with live status, drop-to-upload and Check buttons) with the tabbed view kept as the list view, and a Playground scratchpad canvas for trying files and URLs without saving. Claude assists through the connector; it never approves anything. See DESIGN.md "Layout".
+
 ## 4. Dashboard
 
 Answers three questions:

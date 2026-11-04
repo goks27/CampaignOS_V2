@@ -8,6 +8,7 @@ import { useCampaigns, useConnectorStatus, usePeople } from "@/hooks/queries";
 import { Button, Spinner, Textarea } from "@/components/ui";
 import { useAssistant, type Item } from "./useAssistant";
 import type { Lookup } from "./tools";
+import { useAssistantHint } from "@/features/canvas/assistantHint";
 
 const SUGGESTIONS = [
   "What needs my attention today?",
@@ -27,6 +28,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
   const { data: campaigns } = useCampaigns();
   const { people } = usePeople();
   const connector = useConnectorStatus().data;
+  const hint = useAssistantHint();
   const loc = useLocation();
   const qc = useQueryClient();
   const [draft, setDraft] = React.useState("");
@@ -45,6 +47,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
     return {
       user: { name: me?.fullName, role: me?.role }, today: new Date().toISOString().slice(0, 10), page: loc.pathname,
       open_campaign_id: m?.[1] ?? null,
+      canvas_selection: hint ? { campaign_id: hint.campaignId, card: hint.label } : null,
       campaigns: (campaigns ?? []).slice(0, 60).map((c) => ({ id: c.id, name: c.name, client: c.clients?.name ?? null, stage: c.stage, status: c.status, health: c.health, target_launch_date: c.target_launch_date })),
       people: people.map((p) => ({ id: p.id, name: p.name, role: p.role })),
     };

@@ -16,6 +16,7 @@ import { TeamPage } from "@/features/team/TeamPage";
 import { TimelinePage } from "@/features/timeline/TimelinePage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import { PlaygroundPage } from "@/features/playground/PlaygroundPage";
 import { ImportPage } from "@/features/import/ImportPage";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -55,6 +56,7 @@ export function App() {
                 <Route path="team" element={<TeamPage />} />
                 <Route path="timeline" element={<TimelinePage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="playground" element={<PlaygroundPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="import" element={<ImportPage />} />
                 <Route path="*" element={<NotFoundPage />} />

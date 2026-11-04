@@ -91,8 +91,8 @@ test("two bad answers in a row fail the job instead of writing anything", async 
   await assert.rejects(analyse(sowBrief(), { run: async () => reply(bad) }), (e) => e instanceof ResultRejected && e.problems.some((p) => /category/.test(p)));
 });
 
-test("staging review types are refused clearly", async () => {
-  await assert.rejects(analyse({ ...designBrief("functional_qa") }, { run: async () => reply({}) }), /headless browser/);
+test("an unknown review type is refused clearly", async () => {
+  await assert.rejects(analyse({ ...designBrief("made_up_review") }, { run: async () => reply({}) }), /does not support "made_up_review"/);
 });
 
 // ---------------------------------------------------------------- connector

@@ -116,7 +116,8 @@ function DecisionDialog({ campaign: c, sub, decision, onClose }: { campaign: Cam
   );
 }
 
-function UploadDialog({ campaign: c, onClose }: { campaign: CampaignWithRelations; onClose: () => void }) {
+/** `initialFiles`: files dropped onto the canvas, prepared as soon as the dialog opens. */
+export function UploadDialog({ campaign: c, onClose, initialFiles }: { campaign: CampaignWithRelations; onClose: () => void; initialFiles?: File[] }) {
   const toast = useToast();
   const { data: settings } = useSettings();
   const limits = (settings?.limits ?? {}) as { image_long_edge?: number; max_pdf_pages?: number; max_screens_per_review?: number };
@@ -155,6 +156,14 @@ function UploadDialog({ campaign: c, onClose }: { campaign: CampaignWithRelation
       setPreparing(false);
     }
   };
+
+  const started = React.useRef(false);
+  React.useEffect(() => {
+    if (started.current || !initialFiles?.length) return;
+    started.current = true;
+    void addFiles(initialFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiles]);
 
   const save = useAction(() => designsService.create({
     campaignId: c.id, journeyId: journey || null, title: title || (mode === "figma" ? "Figma design" : "Design submission"), notes,

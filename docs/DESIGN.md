@@ -39,9 +39,16 @@ Tinted backgrounds only for Health pills, Severity tags and the "Demo data" badg
 - Borders do the separating. Shadows only on overlays (drawer, menus, command palette).
 
 ## Layout
-- Sidebar 232px: workspace switcher, search (⌘K), 8 nav items, "Your campaigns" list, user.
-- Top bar 46px: breadcrumb, Demo data badge when relevant, theme, notifications.
-- Detail views open as a right drawer (560px) for peeking; "Open workspace" goes to the full campaign page with tabs.
+- Sidebar 232px: workspace switcher, search (⌘K), 9 nav items (Playground added), "Your campaigns" list, user.
+- Top bar 46px: breadcrumb, Demo data badge when relevant, AI status, Ask Claude (Ctrl+J), theme, notifications.
+- Detail views open as a right drawer (560px) for peeking; "Open workspace" goes to the full campaign page.
+- **Campaign page = Canvas (changed 4 Nov 2026, replaces "the full campaign page with tabs").** On screens 1024px and wider a campaign opens as one pannable canvas. The old tabs remain as the "list view" (the tab row after Canvas) and are the only view on narrow screens.
+  - Pipeline cards, left to right: SOW, Requirements, Designs, Staging build; below: Findings, Tasks. Cards are compact (320px, 1px border, surface fill, no shadow beyond `shadow-sm`), with the standard status dot or pill, one metric, and small buttons. Not decorative: every card shows live data and every button works.
+  - Edges are 1.5px `line-strong`; an edge animates in the accent colour only while Claude is working on that step.
+  - Files can be dropped on the SOW and Designs cards. Clicking a card opens its detail in a 920px drawer (the existing tab content). Clicking a design screen opens a 1040px drawer with the screenshot and the findings pinned on it.
+  - Card positions can be dragged and are remembered per browser (never shared). There is no minimap: six cards do not need one.
+  - Light and dark follow the app theme through the colour tokens in `features/canvas/canvas.css`.
+- **Playground (`/playground`)**: the same canvas style as a scratchpad. A drop card, a card per item added, a Check card (campaign baseline, optional question) and a Result card (verdict pill, summary, findings, pinned regions). Nothing is saved unless the user presses Save.
 
 ## Components
 - Tables: header 12px muted, rows with 1px dividers, hover row background, journeys as indented sub-rows.

@@ -1,0 +1,13 @@
+/* React Flow, restyled to the CampaignOS tokens (see docs/DESIGN.md). Light and dark follow the app theme. */
+.cos-flow { --xy-background-color: rgb(var(--bg)); --xy-edge-stroke: rgb(var(--line-strong)); --xy-edge-stroke-selected: rgb(var(--accent));
+  --xy-connectionline-stroke: rgb(var(--accent)); --xy-minimap-background-color: rgb(var(--side)); --xy-minimap-mask-background-color: rgb(var(--bg) / 0.7);
+  --xy-controls-button-background-color: rgb(var(--surface)); --xy-controls-button-background-color-hover: rgb(var(--hover));
+  --xy-controls-button-color: rgb(var(--text-2)); --xy-controls-button-color-hover: rgb(var(--text)); --xy-controls-button-border-color: rgb(var(--line));
+  --xy-controls-box-shadow: none; --xy-attribution-background-color: transparent; }
+.cos-flow .react-flow__edge-path { stroke-width: 1.5; }
+.cos-flow .react-flow__edge.animated .react-flow__edge-path { stroke: rgb(var(--accent)); }
+.cos-flow .react-flow__node { cursor: default; }
+.cos-flow .react-flow__controls { border: 1px solid rgb(var(--line)); border-radius: 8px; overflow: hidden; }
+.cos-flow .react-flow__minimap { border: 1px solid rgb(var(--line)); border-radius: 8px; overflow: hidden; }
+.cos-flow .react-flow__attribution { display: none; }
+.cos-drop-active { outline: 2px dashed rgb(var(--accent)); outline-offset: 2px; }

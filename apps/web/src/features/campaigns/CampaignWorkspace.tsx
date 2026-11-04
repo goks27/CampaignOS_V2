@@ -8,6 +8,7 @@ import { DemoBadge, ErrorState, LoadingRows, Pill, StageRing } from "@/component
 import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { CampaignFormDialog } from "./CampaignForm";
+import { CampaignCanvas } from "@/features/canvas/CampaignCanvas";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { RequirementsTab } from "./tabs/RequirementsTab";
 import { JourneysTab } from "./tabs/JourneysTab";
@@ -20,6 +21,7 @@ import { DocumentsTab } from "./tabs/DocumentsTab";
 import { ActivityTab } from "./tabs/ActivityTab";
 
 const TABS = [
+  { value: "canvas", label: "Canvas" },
   { value: "overview", label: "Overview" },
   { value: "requirements", label: "Requirements" },
   { value: "journeys", label: "Journeys" },
@@ -33,13 +35,28 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["value"];
 
+function useWide() {
+  const q = "(min-width: 1024px)";
+  const [wide, setWide] = React.useState(() => window.matchMedia?.(q).matches ?? true);
+  React.useEffect(() => {
+    const m = window.matchMedia?.(q);
+    if (!m) return;
+    const on = () => setWide(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
 export function CampaignWorkspace() {
   const { id, tab } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
   const { data: c, isLoading, error, refetch } = useCampaign(id);
   const [editing, setEditing] = React.useState(false);
-  const current = (TABS.some((t) => t.value === tab) ? tab : "overview") as Tab;
+  // The canvas is the home of a campaign on wide screens. Phones and narrow windows get the list view.
+  const wide = useWide();
+  const current = (TABS.some((t) => t.value === tab) ? tab : wide ? "canvas" : "overview") as Tab;
 
   if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
   if (isLoading || !c) return <LoadingRows rows={8} />;
@@ -62,6 +79,7 @@ export function CampaignWorkspace() {
         {canEdit && <Button onClick={() => setEditing(true)}><Pencil />Edit campaign</Button>}
       </div>
       <Tabs className="mb-5" value={current} onChange={(v) => navigate(`/campaigns/${c.id}/${v}`, { replace: true })} tabs={[...TABS]} />
+      {current === "canvas" && <CampaignCanvas campaign={c} />}
       {current === "overview" && <OverviewTab campaign={c} />}
       {current === "requirements" && <RequirementsTab campaign={c} />}
       {current === "journeys" && <JourneysTab campaign={c} />}

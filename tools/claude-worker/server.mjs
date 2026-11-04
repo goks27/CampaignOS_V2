@@ -17,14 +17,15 @@ import path from "node:path";
 import { Supabase, beat, claimJob, completeJob, config, failJob, JobFailed, ResultRejected } from "./core.mjs";
 import { analyse, SUPPORTED } from "./runner.mjs";
 import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
+import { MAX_PLAYGROUND_BYTES, playgroundCheck } from "./playground.mjs";
 
 const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 
-export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, claude = { ok: true, version: "" }, log = console.log }) {
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, log = console.log }) {
   const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
   const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
-  let draining = false, again = false, timer = null, hb = null, assistantBusy = false;
+  let draining = false, again = false, timer = null, hb = null, assistantBusy = false, playgroundBusy = false;
 
   const note = (s) => { if (state.job) state.job.step = s; };
 
@@ -42,7 +43,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
     }, 30_000);
     try {
       await beat(db, cfg, { busy: true, jobId: brief.id });
-      const { result, meta } = await analyseJob(brief, { model: cfg.model, timeoutMs: cfg.jobTimeoutMs, signal: ac.signal, onStep: note });
+      const { result, meta } = await analyseJob(brief, { model: cfg.model, timeoutMs: cfg.jobTimeoutMs, signal: ac.signal, onStep: note, db });
       note("Saving results");
       const summary = await completeJob(db, cfg, brief, result, meta);
       state.last = { id: brief.id, type: brief.review_type, status: summary?.status === "cancelled" ? "cancelled" : "completed", at: new Date().toISOString(), summary };
@@ -108,7 +109,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
     if (req.method === "OPTIONS") { res.writeHead(204, cors); return res.end(); }
     const url = new URL(req.url || "/", "http://localhost");
     if (req.method === "GET" && url.pathname === "/status") {
-      return json(200, { connector: "claude-code", claude, model: cfg.model, supports: SUPPORTED, assistant: true, busy: state.busy, job: state.job, last: state.last, startedAt: state.startedAt });
+      return json(200, { connector: "claude-code", claude, model: cfg.model, supports: SUPPORTED, assistant: true, playground: true, busy: state.busy, job: state.job, last: state.last, startedAt: state.startedAt });
     }
     if (req.method === "POST" && url.pathname === "/assistant") {
       // One assistant turn at a time. Review jobs run separately, so a long review never blocks a quick question.
@@ -126,6 +127,24 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
           json(e instanceof JobFailed ? 502 : 500, { error: e instanceof JobFailed ? e.message : "The assistant failed. Check the connector window." });
         })
         .finally(() => { assistantBusy = false; });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/playground") {
+      // Files and URLs the user dropped on the Playground. Nothing is stored; one check at a time.
+      if (Number(req.headers["content-length"] || 0) > MAX_PLAYGROUND_BYTES) { res.setHeader("Connection", "close"); return json(413, { error: "That is too much to check at once (limit about 45 MB). Remove some files." }); }
+      if (playgroundBusy) return json(429, { error: "Claude is still working on the previous playground check." });
+      if (!String(req.headers["content-type"] || "").startsWith("application/json")) return json(415, { error: "Send JSON." });
+      playgroundBusy = true;
+      const ac = new AbortController();
+      res.on("close", () => { if (!res.writableEnded) ac.abort(); });
+      readBody(req, MAX_PLAYGROUND_BYTES).then((body) => playground(body, { model: cfg.assistantModel || cfg.model, signal: ac.signal }))
+        .then((out) => json(200, out))
+        .catch((e) => {
+          if (e instanceof BadRequest) return json(400, { error: e.message });
+          log(`playground failed: ${e.message}`);
+          json(e instanceof JobFailed ? 502 : 500, { error: e instanceof JobFailed ? e.message : "The playground check failed. Check the connector window." });
+        })
+        .finally(() => { playgroundBusy = false; });
       return;
     }
     if (req.method === "POST" && url.pathname === "/wake") {

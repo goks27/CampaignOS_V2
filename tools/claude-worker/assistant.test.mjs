@@ -97,8 +97,9 @@ test("route: answers a turn, rejects bad input, blocks foreign origins and overl
     assert.equal((await post(port, "/assistant", body(), { Origin: "https://evil.example" })).status, 403);
     assert.equal((await post(port, "/assistant", "not json")).status, 400);
     assert.equal((await post(port, "/assistant", body(), { "Content-Type": "text/plain" })).status, 415);
-    const huge = await post(port, "/assistant", JSON.stringify({ x: "y".repeat(1_600_000) }));
-    assert.equal(huge.status, 413);
+    // Refused before reading, so the sender may see the connection reset before the 413 arrives.
+    const huge = await post(port, "/assistant", JSON.stringify({ x: "y".repeat(1_600_000) })).then((r) => r.status, (e) => e.code);
+    assert.ok(huge === 413 || huge === "ECONNRESET" || huge === "EPIPE", String(huge));
     const slow = post(port, "/assistant", body({ transcript: [{ type: "user", text: "slow" }] }));
     await new Promise((r) => setTimeout(r, 50));
     assert.equal((await post(port, "/assistant", body())).status, 429);

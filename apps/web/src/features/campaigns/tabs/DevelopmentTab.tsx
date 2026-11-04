@@ -159,7 +159,7 @@ function Submissions({ campaign: c }: { campaign: CampaignWithRelations }) {
   );
 }
 
-function SubmissionDialog({ campaign: c, onClose }: { campaign: CampaignWithRelations; onClose: () => void }) {
+export function SubmissionDialog({ campaign: c, onClose }: { campaign: CampaignWithRelations; onClose: () => void }) {
   const { me } = useAuth();
   const { people } = usePeople();
   const envs = useQuery({ queryKey: [...qk.dev(c.id), "env"], queryFn: () => developmentService.environments(c.id) });

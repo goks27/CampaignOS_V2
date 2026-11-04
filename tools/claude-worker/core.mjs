@@ -122,6 +122,13 @@ export class Supabase {
   }
 }
 
+/** Uploads a capture. The worker may only write under the folder of the job it holds (enforced by storage policy). */
+Supabase.prototype.upload = async function upload(bucket, objectPath, data, contentType) {
+  const url = `${this.cfg.url}/storage/v1/object/${bucket}/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
+  const r = await withRetry(async () => fetch(url, { method: "POST", headers: await this.headers({ "Content-Type": contentType, "x-upsert": "false" }), body: data }));
+  if (!r.ok) throw new Error(`Upload to ${bucket}/${objectPath} failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
+};
+
 /** Reports availability to the dashboard (worker_status). The accelerator column only allows gpu | cpu | unknown. */
 export async function beat(db, cfg, { busy = false, jobId = null, message = "", model = MODEL_LABEL, ready = true } = {}) {
   await db.rpc("worker_heartbeat", {
@@ -226,6 +233,15 @@ export function validate(result, brief) {
     return errs;
   }
 
+  const STAGING = ["design_vs_development", "functional_qa", "regression", "sow_vs_development"];
+  if (STAGING.includes(type)) {
+    const prefix = brief?.input?.capture_prefix || "";
+    const keys = new Set((result.captures || []).map((x) => x.key));
+    (result.captures || []).forEach((x, i) => { if (x.storage_path && !String(x.storage_path).startsWith(prefix)) errs.push(`captures[${i}].storage_path is outside this job's folder`); });
+    (result.findings || []).forEach((f, i) => { if (f.capture_key && !keys.has(f.capture_key)) errs.push(`findings[${i}].capture_key does not match a capture`); });
+    const caseIds = new Set((brief?.input?.test_cases || []).map((t) => String(t.id)));
+    (result.test_results || []).forEach((t, i) => { if (!caseIds.has(String(t.test_case_id))) errs.push(`test_results[${i}].test_case_id is not a scenario of this job`); else oneOf(t.result, CHECK, `test_results[${i}].result`); });
+  }
   if (!Array.isArray(result.findings)) errs.push("findings must be an array (it can be empty)");
   (result.findings || []).forEach((f, i) => {
     const w = `findings[${i}]`;

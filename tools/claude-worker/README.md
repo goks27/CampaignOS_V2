@@ -41,6 +41,12 @@ Press **Ctrl+J** (or click **Ask Claude** in the top bar) to open a Claude chat.
 - `CLAUDE_ASSISTANT_MODEL` in `services/local-ai-worker/.env` sets the model for chat (defaults to `CLAUDE_MODEL`).
 - Privacy: what Claude reads is sent to Anthropic through your Claude plan, like the review analyses.
 
+## Campaign canvas and Playground
+- **Canvas.** A campaign opens as one canvas on screens 1024px and wider: SOW, Requirements, Designs, Staging build, Findings and Tasks as connected cards with live status. Drop a SOW on the SOW card or screens on the Designs card, press Check on a card, and click a design screen to see Claude's findings pinned on it (accept or dismiss there; assign and edit in the Findings Inbox). Cards open the existing screens in a side panel. The old tabs are still there as the list view.
+- **Playground (`/playground`).** Drop a SOW, designs, any document or a web address; pick a campaign (its accepted requirements become the baseline) or none; press Check. Claude says whether you are heading the right way, lists the problems and pins them on your screens and on a screenshot of the page. Nothing is saved unless you press Save screens / Save document. Needs the connector running.
+- Playground URLs: only domains on Settings > Allowed domains (or the campaign's test environment). Private and local addresses are always refused. Over 40 MB in one check is refused before sending.
+- Playground endpoint: `POST /playground` (see CLAUDE.md for what it receives and what it keeps: nothing).
+
 ## Using the CLI (manual)
 Upload a SOW (or submit a design review) in the dashboard, then ask Claude Code: **"process the CampaignOS queue"**.
 Claude Code repeats: `claim` -> analyse -> write `result.json` -> `complete`, until the queue is empty, then `idle`.
@@ -128,5 +134,10 @@ Read every page of `pages.json` (read scanned pages visually from the PDF and pu
 - Severity: critical = blocks launch or legal risk; high; medium; low; informational.
 
 ### Staging reviews (`design_vs_development`, `functional_qa`, `regression`, `sow_vs_development`)
-Not supported by this bridge yet: they need a headless browser. Leave those jobs for the Python worker, or ask for this to be
-added. Do not claim them.
+Run by the connector in headless Chromium (Playwright). One-time setup: `npm run claude:browser` (downloads Chromium, about 150 MB).
+- You enter the staging URL, page paths and devices on the Development tab. Turn on Settings > Automatic analysis for the staging reviews to have them start the moment a build is submitted (all automatic triggers are off by default), or press the review buttons.
+- **design_vs_development**: screenshots each page on desktop and mobile, compares it with the matching approved design screen by pixels, and asks Claude only about the regions that differ (noise is filtered out). Console errors and failed requests are reported without any model.
+- **functional_qa / regression**: runs the test scenarios from the Development tab step by step (goto, fill, click, select, check, expect_text, expect_visible, expect_url, wait). Each is verified, failed or blocked, with a screenshot and the console and network errors.
+- **sow_vs_development**: scenario results for linked requirements, screenshot checks for visible ones, and "Needs verification" for backend rules.
+- The page is opened from THIS PC, so the staging site must be reachable from it (VPN included). The domain must be in the environment's or Settings' allowed domains. Private and local addresses are always refused.
+- Limits: a review that runs past the job timeout (30 minutes by default) stops with a message. Test fewer pages or devices. Screenshots over 10 MB are re-encoded as JPEG.

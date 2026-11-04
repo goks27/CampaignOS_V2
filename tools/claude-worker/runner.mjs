@@ -11,7 +11,9 @@ import { spawn } from "node:child_process";
 import { CATEGORIES, CONFIDENCE, PRIORITY, ResultRejected, SEVERITY, validate, JobFailed } from "./core.mjs";
 
 const PROMPT_VERSIONS = { sow_analysis: "claude-sow-v1", sow_vs_design: "claude-design-v1", design_consistency: "claude-consistency-v1" };
-export const SUPPORTED = Object.keys(PROMPT_VERSIONS);
+/** Staging reviews run in a real browser (staging.mjs, loaded only when needed). */
+const STAGING = ["design_vs_development", "functional_qa", "regression", "sow_vs_development"];
+export const SUPPORTED = [...Object.keys(PROMPT_VERSIONS), ...STAGING];
 
 // ---------------------------------------------------------------- schemas (structured output)
 const nullable = (type) => ({ type: [type, "null"] });
@@ -237,13 +239,13 @@ export function runClaude({ prompt, schema, cwd, model, timeoutMs, signal, tools
   });
 }
 
-function parseAnswer(o) {
+export function parseAnswer(o) {
   if (o.structured_output && typeof o.structured_output === "object") return o.structured_output;
   const text = String(o.result || "").trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
   try { return JSON.parse(text); } catch { throw new JobFailed("Claude's answer was not valid JSON.", { retryable: true }); }
 }
 
-function usageOf(o) {
+export function usageOf(o) {
   const u = o.usage || {};
   const models = Object.entries(o.modelUsage || {}).sort((a, b) => (b[1].outputTokens || 0) - (a[1].outputTokens || 0));
   return {
@@ -254,9 +256,13 @@ function usageOf(o) {
 }
 
 /** Analyses one claimed job. Returns { result, meta }. Throws JobFailed or ResultRejected. */
-export async function analyse(brief, { model = "sonnet", timeoutMs = 900_000, signal, onStep = () => {}, run = runClaude } = {}) {
+export async function analyse(brief, { model = "sonnet", timeoutMs = 900_000, signal, onStep = () => {}, run = runClaude, db, guard, openBrowser } = {}) {
+  if (STAGING.includes(brief.review_type)) {
+    const { runStaging } = await import("./staging.mjs");
+    return runStaging(brief, { model, timeoutMs, signal, onStep, run, db, guard, openBrowser });
+  }
   if (!SUPPORTED.includes(brief.review_type)) {
-    throw new JobFailed(`The Claude connector does not support "${brief.review_type}" yet. It needs a headless browser; leave it for the Python worker.`, { retryable: false });
+    throw new JobFailed(`The Claude connector does not support "${brief.review_type}".`, { retryable: false });
   }
   const schema = brief.review_type === "sow_analysis" ? SOW_SCHEMA : DESIGN_SCHEMA;
   const started = Date.now();

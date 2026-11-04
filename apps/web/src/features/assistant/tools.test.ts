@@ -53,7 +53,8 @@ describe("write tools validate before they ever show a Confirm card", () => {
     expect(() => w("create_task").propose({ campaign_id: ID, title: "" }, lookup)).toThrow(/title/);
     expect(() => w("create_task").propose({ campaign_id: ID, title: "x", priority: "urgent" }, lookup)).toThrow(/priority/);
     expect(() => w("update_task").propose({ task_id: ID }, lookup)).toThrow(/at least one field/);
-    expect(() => w("start_review").propose({ campaign_id: ID, review_type: "regression" }, lookup)).toThrow(/review_type/);
+    expect(() => w("start_review").propose({ campaign_id: ID, review_type: "made_up" }, lookup)).toThrow(/review_type/);
+    expect(() => w("start_review").propose({ campaign_id: ID, review_type: "functional_qa" }, lookup)).toThrow(/development_submission_id/);
     expect(() => w("start_review").propose({ campaign_id: ID, review_type: "sow_vs_design" }, lookup)).toThrow(/design_submission_id/);
   });
 
@@ -112,6 +113,8 @@ describe("decisions stay with managers", () => {
     vi.mocked(jobsService.enqueue).mockResolvedValue("job" as never);
     await w("start_review").propose({ campaign_id: ID, review_type: "sow_vs_design", design_submission_id: ID2 }, lookup).apply();
     expect(jobsService.enqueue).toHaveBeenCalledWith(ID, "sow_vs_design", { design_submission_id: ID2 }, false);
+    await w("start_review").propose({ campaign_id: ID, review_type: "functional_qa", development_submission_id: ID2 }, lookup).apply();
+    expect(jobsService.enqueue).toHaveBeenLastCalledWith(ID, "functional_qa", { development_submission_id: ID2 }, false);
   });
 });
 

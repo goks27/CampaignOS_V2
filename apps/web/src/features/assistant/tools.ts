@@ -31,10 +31,12 @@ const SEVERITY = z.enum(keys<Severity>(SEVERITY_LABEL));
 const FINDING_STATUS = z.enum(keys<FindingStatus>(FINDING_STATUS_LABEL));
 const CAMPAIGN_STATUS = z.enum(keys<CampaignStatus>(CAMPAIGN_STATUS_LABEL));
 const REQ_READ_STATUS = z.enum(["draft", "accepted", "rejected", "needs_clarification"]);
-/** Reviews the Claude connector can run. Staging reviews need a browser worker that does not exist on this PC yet. */
-export const ASSISTANT_REVIEW_TYPES = ["sow_analysis", "sow_vs_design", "design_consistency"] as const;
-const REVIEW_SOURCE: Record<(typeof ASSISTANT_REVIEW_TYPES)[number], string> = {
+/** Every review the Claude connector can run (staging reviews use a headless browser on this PC). */
+export const ASSISTANT_REVIEW_TYPES = ["sow_analysis", "sow_vs_design", "design_consistency", "design_vs_development", "functional_qa", "regression", "sow_vs_development"] as const;
+type SourceKey = "sow_version_id" | "design_submission_id" | "development_submission_id";
+const REVIEW_SOURCE: Record<(typeof ASSISTANT_REVIEW_TYPES)[number], SourceKey> = {
   sow_analysis: "sow_version_id", sow_vs_design: "design_submission_id", design_consistency: "design_submission_id",
+  design_vs_development: "development_submission_id", functional_qa: "development_submission_id", regression: "development_submission_id", sow_vs_development: "development_submission_id",
 };
 
 const uuid = z.string().uuid();
@@ -242,13 +244,13 @@ const writes: WriteTool[] = [
     },
   }),
   write({
-    name: "start_review", description: "Start an AI review. sow_analysis needs sow_version_id; sow_vs_design and design_consistency need design_submission_id. Results are drafts for a manager.", params: "{campaign_id: uuid, review_type: sow_analysis|sow_vs_design|design_consistency, sow_version_id?: uuid, design_submission_id?: uuid}",
-    schema: z.object({ campaign_id: uuid, review_type: z.enum(ASSISTANT_REVIEW_TYPES), sow_version_id: uuid.optional(), design_submission_id: uuid.optional() })
-      .refine((a) => Boolean(a[REVIEW_SOURCE[a.review_type] as "sow_version_id" | "design_submission_id"]), (a) => ({ message: `${a.review_type} needs ${REVIEW_SOURCE[a.review_type]}`, path: [REVIEW_SOURCE[a.review_type]] })),
+    name: "start_review", description: "Start an AI review. sow_analysis needs sow_version_id; sow_vs_design and design_consistency need design_submission_id; design_vs_development, functional_qa, regression and sow_vs_development test a staging build in a browser and need development_submission_id. Results are drafts for a manager.", params: "{campaign_id: uuid, review_type: sow_analysis|sow_vs_design|design_consistency|design_vs_development|functional_qa|regression|sow_vs_development, sow_version_id?: uuid, design_submission_id?: uuid, development_submission_id?: uuid}",
+    schema: z.object({ campaign_id: uuid, review_type: z.enum(ASSISTANT_REVIEW_TYPES), sow_version_id: uuid.optional(), design_submission_id: uuid.optional(), development_submission_id: uuid.optional() })
+      .refine((a) => Boolean(a[REVIEW_SOURCE[a.review_type]]), (a) => ({ message: `${a.review_type} needs ${REVIEW_SOURCE[a.review_type]}`, path: [REVIEW_SOURCE[a.review_type]] })),
     describe: (a, l) => ({ title: "Start AI review", fields: present([["Campaign", l.campaign(a.campaign_id)], ["Review", a.review_type.replace(/_/g, " ")], ["Note", "Findings arrive as drafts for a manager"]]) }),
     apply: async (a) => {
       const key = REVIEW_SOURCE[a.review_type];
-      await jobsService.enqueue(a.campaign_id, a.review_type, { [key]: String(a[key as "sow_version_id" | "design_submission_id"]) }, false);
+      await jobsService.enqueue(a.campaign_id, a.review_type, { [key]: String(a[key]) }, false);
       const started = await connectorService.wake();
       return { summary: `Started ${a.review_type.replace(/_/g, " ")}${started ? "" : " (queued: the Claude connector is not running)"}`, campaignId: a.campaign_id, link: `/campaigns/${a.campaign_id}/ai-reviews` };
     },
