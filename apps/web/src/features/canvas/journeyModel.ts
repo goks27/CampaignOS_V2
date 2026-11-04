@@ -120,10 +120,14 @@ export function buildJourneyModel(raw: JourneyRaw, key: string) {
 // ---------------------------------------------------------------- layout
 export const NODE_W = 240;
 export const NODE_H = 360;
+/** Where the vertical middle of a screen's phone frame is, so Start, End and the arrows line up with it. */
+export const FRAME_MID = 140;
 const GAP_X = 90;
 const GAP_Y = 70;
 
 export type LayoutEdge = { id: string; source: string; target: string; kind: "flow" | "state" };
+export const START_ID = "__start";
+export const END_ID = "__end";
 
 /** Main screens run left to right in flow order. States (error, success) sit below the screen they belong to. */
 export function layoutScreens(screens: ScreenModel[]) {
@@ -148,5 +152,15 @@ export function layoutScreens(screens: ScreenModel[]) {
       edges.push({ id: `state-${parent.asset.id}-${s.asset.id}`, source: k === 1 ? parent.asset.id : screens.find((x) => positions[x.asset.id]?.x === positions[s.asset.id]!.x && positions[x.asset.id]!.y === (k - 1) * (NODE_H + GAP_Y))?.asset.id ?? parent.asset.id, target: s.asset.id, kind: "state" });
     }
   }
-  return { positions, edges };
+  // Start and End bracket the main flow, like the first and last step of the journey.
+  const mains = screens.filter((s) => s.kind === "main" || s.parent < 0);
+  const first = mains[0], last = mains[mains.length - 1];
+  const bookends = first && last ? {
+    start: { x: -150, y: FRAME_MID - 18 }, end: { x: (mains.length - 1) * (NODE_W + GAP_X) + NODE_W + 40, y: FRAME_MID - 18 },
+    edges: [
+      { id: "flow-start", source: START_ID, target: first.asset.id, kind: "flow" as const },
+      { id: "flow-end", source: last.asset.id, target: END_ID, kind: "flow" as const },
+    ],
+  } : null;
+  return { positions, edges, bookends };
 }

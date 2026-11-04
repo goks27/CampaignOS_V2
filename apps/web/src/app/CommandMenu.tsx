@@ -1,12 +1,15 @@
 import { Command } from "cmdk";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
-import { FolderKanban, LayoutGrid, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings, Upload } from "lucide-react";
+import { FlaskConical, FolderKanban, Home, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings, Upload } from "lucide-react";
+import { SECTIONS, SECTION_LABEL, parseCampaignPath, campaignPath } from "@/lib/nav";
+import { useLocation } from "react-router-dom";
 import { useCampaigns } from "@/hooks/queries";
 import { useAuth } from "@/lib/auth";
 
 export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
+  const here = parseCampaignPath(useLocation().pathname);
   const { data: campaigns } = useCampaigns();
   const { isManager } = useAuth();
   const go = (to: string) => {
@@ -28,12 +31,17 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               <Command.Empty className="px-3 py-6 text-center text-sm text-muted">No results.</Command.Empty>
               {isManager && (
                 <Command.Group heading="Actions" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
-                  <Command.Item className={item} onSelect={() => go("/campaigns?new=1")}><Plus />New campaign</Command.Item>
+                  <Command.Item className={item} onSelect={() => go("/projects?new=1")}><Plus />New project</Command.Item>
                   <Command.Item className={item} onSelect={() => go("/tasks?new=1")}><Plus />New task</Command.Item>
                   <Command.Item className={item} onSelect={() => go("/import")}><Upload />Import campaigns from Notion</Command.Item>
                 </Command.Group>
               )}
-              <Command.Group heading="Campaigns" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
+              {here && (
+                <Command.Group heading="This campaign" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
+                  {SECTIONS.map((s) => <Command.Item key={s} value={`campaign ${SECTION_LABEL[s]}`} className={item} onSelect={() => go(campaignPath(here.id, s))}><FolderKanban />{SECTION_LABEL[s]}</Command.Item>)}
+                </Command.Group>
+              )}
+              <Command.Group heading="Projects" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
                 {(campaigns ?? []).map((c) => (
                   <Command.Item key={c.id} value={`${c.name} ${c.clients?.name ?? ""}`} className={item} onSelect={() => go(`/campaigns/${c.id}`)}>
                     <FolderKanban />{c.name}<span className="ml-auto text-xs text-muted">{c.clients?.name}</span>
@@ -41,10 +49,12 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
                 ))}
               </Command.Group>
               <Command.Group heading="Go to" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
-                <Command.Item className={item} onSelect={() => go("/")}><LayoutGrid />Dashboard</Command.Item>
-                <Command.Item className={item} onSelect={() => go("/campaigns")}><FolderKanban />Campaigns</Command.Item>
-                <Command.Item className={item} onSelect={() => go("/tasks")}><ListChecks />Tasks & Feedback</Command.Item>
-                <Command.Item className={item} onSelect={() => go("/reviews")}><Sparkles />AI Reviews · Findings Inbox</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/")}><Home />Home</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/inbox")}><Inbox />My Inbox</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/projects")}><FolderKanban />Projects</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/tasks")}><ListChecks />Tasks</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/playground")}><FlaskConical />Playground</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/reviews")}><Sparkles />Findings Inbox</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/team")}><Users />Team</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/timeline")}><CalendarRange />Timeline</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/reports")}><BarChart3 />Reports</Command.Item>

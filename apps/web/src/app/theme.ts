@@ -8,7 +8,7 @@ function read(): Theme {
     const t = localStorage.getItem(KEY);
     if (t === "light" || t === "dark") return t;
   } catch { /* storage unavailable */ }
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "dark"; // Journ opens dark; the toggle in the top bar and a saved choice always win
 }
 
 /** Theme is a per-browser convenience; it is not product data. */

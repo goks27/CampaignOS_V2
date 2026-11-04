@@ -1,96 +1,79 @@
-import { useNavigate, useParams } from "react-router-dom";
 import * as React from "react";
-import { Pencil } from "lucide-react";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { Activity, AlertCircle, Code2, FlaskConical, ImagePlus, ListChecks, ScanSearch, Workflow } from "lucide-react";
 import { useCampaign } from "@/hooks/queries";
-import { useAuth } from "@/lib/auth";
-import { Button, Tabs } from "@/components/ui";
-import { DemoBadge, ErrorState, LoadingRows, Pill, PhaseStrip } from "@/components/common";
-import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
-import { formatDate } from "@/lib/utils";
-import { CampaignFormDialog } from "./CampaignForm";
+import { ErrorState, LoadingRows, Section } from "@/components/common";
+import { cn } from "@/lib/utils";
+import { campaignPath, resolveSection, SECTIONS, SECTION_LABEL, type Section as SectionId } from "@/lib/nav";
+import type { CampaignWithRelations } from "@/services/campaigns";
 import { CampaignCanvas } from "@/features/canvas/CanvasHome";
-import { OverviewTab } from "./tabs/OverviewTab";
 import { RequirementsTab } from "./tabs/RequirementsTab";
-import { JourneysTab } from "./tabs/JourneysTab";
 import { DesignsTab } from "./tabs/DesignsTab";
 import { DevelopmentTab } from "./tabs/DevelopmentTab";
 import { AiReviewsTab } from "./tabs/AiReviewsTab";
-import { CampaignTasksTab } from "./tabs/CampaignTasksTab";
 import { ApprovalsTab } from "./tabs/ApprovalsTab";
 import { DocumentsTab } from "./tabs/DocumentsTab";
+import { CampaignTasksTab } from "./tabs/CampaignTasksTab";
 import { ActivityTab } from "./tabs/ActivityTab";
 
-const TABS = [
-  { value: "canvas", label: "Canvas" },
-  { value: "overview", label: "Overview" },
-  { value: "requirements", label: "Requirements" },
-  { value: "journeys", label: "Journeys" },
-  { value: "designs", label: "Designs" },
-  { value: "development", label: "Development" },
-  { value: "ai-reviews", label: "AI Reviews" },
-  { value: "tasks", label: "Tasks" },
-  { value: "approvals", label: "Approvals" },
-  { value: "documents", label: "Documents" },
-  { value: "activity", label: "Activity" },
-] as const;
-type Tab = (typeof TABS)[number]["value"];
+const ICON: Record<SectionId, React.ComponentType<{ className?: string }>> = {
+  canvas: Workflow, requirements: ListChecks, designs: ImagePlus, review: ScanSearch, development: Code2, testing: FlaskConical, issues: AlertCircle, activity: Activity,
+};
 
-function useWide() {
-  const q = "(min-width: 1024px)";
-  const [wide, setWide] = React.useState(() => window.matchMedia?.(q).matches ?? true);
-  React.useEffect(() => {
-    const m = window.matchMedia?.(q);
-    if (!m) return;
-    const on = () => setWide(m.matches);
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return wide;
+/** The campaign's sections, as one row under the top bar. The canvas is the home; everything else is one click away. */
+export function SectionTabs({ id, current }: { id: string; current: SectionId }) {
+  const { search } = useLocation();
+  return (
+    <nav aria-label="Campaign sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-bg px-3 sm:px-4">
+      {SECTIONS.map((s) => {
+        const Icon = ICON[s];
+        const on = s === current;
+        return (
+          <Link key={s} to={{ pathname: campaignPath(id, s), search: s === "canvas" ? search : "" }} aria-current={on ? "page" : undefined}
+            className={cn("relative flex h-11 shrink-0 items-center gap-1.5 px-3 text-sm text-text-2 hover:text-text", on && "font-medium text-text")}>
+            <Icon className={cn("size-4", on ? "text-accent" : "text-muted")} />{SECTION_LABEL[s]}
+            {on && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Body({ c, section }: { c: CampaignWithRelations; section: SectionId }) {
+  switch (section) {
+    case "requirements": return <><RequirementsTab campaign={c} /><Section title="Documents"><DocumentsTab campaign={c} /></Section></>;
+    case "designs": return <DesignsTab campaign={c} />;
+    case "review": return <><AiReviewsTab campaign={c} /><Section title="Approvals"><ApprovalsTab campaign={c} /></Section></>;
+    case "development": return <DevelopmentTab campaign={c} part="build" />;
+    case "testing": return <DevelopmentTab campaign={c} part="testing" />;
+    case "issues": return <CampaignTasksTab campaign={c} />;
+    case "activity": return <ActivityTab campaign={c} />;
+    default: return null;
+  }
 }
 
 export function CampaignWorkspace() {
   const { id, tab } = useParams();
-  const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { search } = useLocation();
   const { data: c, isLoading, error, refetch } = useCampaign(id);
-  const [editing, setEditing] = React.useState(false);
-  // The canvas is the home of a campaign on wide screens. Phones and narrow windows get the list view.
-  const wide = useWide();
-  const current = (TABS.some((t) => t.value === tab) ? tab : wide ? "canvas" : "overview") as Tab;
+  const { section, redirect } = resolveSection(tab);
 
-  if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
-  if (isLoading || !c) return <LoadingRows rows={8} />;
+  // Old addresses (…/overview, …/ai-reviews, …) keep working: they land on the section that holds that content now.
+  if (redirect && id) return <Navigate to={{ pathname: campaignPath(id, section), search }} replace />;
+  if (!id) return null;
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate font-display text-2xl font-normal tracking-tight">{c.name}</h1>
-            {c.is_demo && <DemoBadge />}
+      <SectionTabs id={id} current={section} />
+      {error ? <div className="p-6"><ErrorState error={error} onRetry={() => void refetch()} /></div>
+        : isLoading || !c ? <div className="p-6"><LoadingRows rows={8} /></div>
+        : section === "canvas" ? <div className="flex min-h-0 flex-1 flex-col"><CampaignCanvas campaign={c} /></div>
+        : (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-content px-4 py-5 sm:px-6"><div key={section} className="page-enter"><Body c={c} section={section} /></div></div>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-2">
-            <span>{c.clients?.name ?? "No client"}</span>
-            <PhaseStrip stage={c.stage} />
-            <Pill tone={HEALTH_TONE[c.health]}>{HEALTH_LABEL[c.health]}</Pill>
-            <span className="num">Launch {formatDate(c.target_launch_date)}</span>
-          </div>
-        </div>
-        {canEdit && <Button onClick={() => setEditing(true)}><Pencil />Edit campaign</Button>}
-      </div>
-      <Tabs className="mb-5" value={current} onChange={(v) => navigate(`/campaigns/${c.id}/${v}`, { replace: true })} tabs={[...TABS]} />
-      {current === "canvas" && <CampaignCanvas campaign={c} />}
-      {current === "overview" && <OverviewTab campaign={c} />}
-      {current === "requirements" && <RequirementsTab campaign={c} />}
-      {current === "journeys" && <JourneysTab campaign={c} />}
-      {current === "designs" && <DesignsTab campaign={c} />}
-      {current === "development" && <DevelopmentTab campaign={c} />}
-      {current === "ai-reviews" && <AiReviewsTab campaign={c} />}
-      {current === "tasks" && <CampaignTasksTab campaign={c} />}
-      {current === "approvals" && <ApprovalsTab campaign={c} />}
-      {current === "documents" && <DocumentsTab campaign={c} />}
-      {current === "activity" && <ActivityTab campaign={c} />}
-      {editing && <CampaignFormDialog open={editing} onOpenChange={setEditing} campaign={c} />}
+        )}
     </>
   );
 }

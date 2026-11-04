@@ -15,13 +15,12 @@ import type { CampaignWithRelations } from "@/services/campaigns";
 import { RunReviewButton } from "@/features/shared/RunReview";
 import { AssetImage } from "@/features/shared/AssetImage";
 
-export function DevelopmentTab({ campaign: c }: { campaign: CampaignWithRelations }) {
+/** "build" is the staging environments and builds; "testing" is the scenarios and their runs. */
+export function DevelopmentTab({ campaign: c, part = "all" }: { campaign: CampaignWithRelations; part?: "all" | "build" | "testing" }) {
   return (
     <>
-      <Environments campaign={c} />
-      <Submissions campaign={c} />
-      <Scenarios campaign={c} />
-      <Runs campaign={c} />
+      {part !== "testing" && <><Environments campaign={c} /><Submissions campaign={c} /></>}
+      {part !== "build" && <><Scenarios campaign={c} /><Runs campaign={c} /></>}
     </>
   );
 }

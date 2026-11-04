@@ -98,6 +98,14 @@ describe("layoutScreens", () => {
     expect(edges.filter((e) => e.kind === "flow")).toHaveLength(2);
   });
 
+  it("brackets the main flow with Start and End, level with the phone frames", () => {
+    const { bookends, positions } = layoutScreens(model(["screen", "form", "error state", "screen"]));
+    expect(bookends!.start.x).toBeLessThan(positions.s0!.x);
+    expect(bookends!.end.x).toBeGreaterThan(positions.s3!.x);
+    expect(bookends!.edges.map((e) => [e.source, e.target])).toEqual([["__start", "s0"], ["s3", "__end"]]);
+    expect(layoutScreens([]).bookends).toBeNull();
+  });
+
   it("a state with nothing before it is just the first screen", () => {
     const { positions } = layoutScreens(model(["error state", "screen"]));
     expect(positions.s0).toEqual({ x: 0, y: 0 });

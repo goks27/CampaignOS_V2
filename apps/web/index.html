@@ -10,7 +10,7 @@
     <script>
       try {
         const t = localStorage.getItem("campaignos-theme");
-        const dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        const dark = t !== "light"; // dark unless the user chose light
         if (dark) document.documentElement.classList.add("dark");
       } catch (e) {}
     </script>

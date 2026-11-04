@@ -41,6 +41,9 @@ Press **Ctrl+J** (or click **Ask Claude** in the top bar) to open a Claude chat.
 - `CLAUDE_ASSISTANT_MODEL` in `services/local-ai-worker/.env` sets the model for chat (defaults to `CLAUDE_MODEL`).
 - Privacy: what Claude reads is sent to Anthropic through your Claude plan, like the review analyses.
 
+## Using Journ day to day
+Home shows what you were working on, what is waiting for your review and what is assigned to you. Open a campaign from the left rail: it opens on its canvas, and the row under the top bar (Canvas, Requirements, Designs, Review, Development, Testing, Issues, Activity) is how you move around. **Run tests** in the top bar starts a Site check on the latest build. My Inbox is the single list of everything that needs you.
+
 ## Journey canvases
 Open a campaign: the Canvas has a tab for every journey. A journey tab shows its design screens as nodes in flow order (error and success states below the screen they belong to) with status, finding counts and the built-page comparison. Click a screen and the inspector on the right shows its findings pinned on the design, the requirements behind them, the journey's test results, and its tasks. "Check designs vs SOW", "Test now", "Compare with built page", "Submit designs", "Add staging build" and "Add a task" are all in the inspector. Dropping files on a journey canvas submits them as designs for that journey.
 

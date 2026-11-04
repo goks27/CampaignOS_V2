@@ -45,8 +45,19 @@ export function StageRing({ stage, showLabel = true }: { stage: Stage; showLabel
 }
 
 /** Plan, Build, Review, Launch: where the campaign is, at a glance. The exact stage is spelled out beside it. */
-export function PhaseStrip({ stage }: { stage: Stage }) {
+export function PhaseStrip({ stage, compact = false }: { stage: Stage; compact?: boolean }) {
   const now = phaseIndex(stage);
+  if (compact) {
+    // Four dots and the current phase: small enough for a cover card or the sidebar.
+    return (
+      <div className="inline-flex items-center gap-2 whitespace-nowrap text-xs" title={`Stage ${STAGES.indexOf(stage) + 1} of 7: ${STAGE_LABEL[stage]}`}>
+        <span className="inline-flex items-center gap-1" aria-hidden>
+          {PHASES.map((p, i) => <span key={p} className={cn("size-1.5 rounded-full", phaseDone(stage, i) || (i === now && stage !== "completed") ? "bg-accent" : "bg-line-strong", i === now && stage !== "completed" && "ring-2 ring-accent/25")} />)}
+        </span>
+        <span className="text-text-2">{stage === "completed" ? "Completed" : `${PHASES[now]} · ${STAGE_LABEL[stage]}`}</span>
+      </div>
+    );
+  }
   return (
     <div className="inline-flex items-center gap-2 whitespace-nowrap" title={`Stage ${STAGES.indexOf(stage) + 1} of 7: ${STAGE_LABEL[stage]}`}>
       <ol className="inline-flex items-center text-xs" aria-label="Phase">

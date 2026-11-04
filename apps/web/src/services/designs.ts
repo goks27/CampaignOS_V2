@@ -9,6 +9,11 @@ export type DesignAsset = Tables<"design_assets">;
 export type NewScreen = PreparedImage & { screenName: string; screenType: string; sourceFile: string };
 
 export const designsService = {
+  /** Screens of the newest design submissions, for campaign covers. The cover itself is picked in features/home/model.ts. */
+  async coverRows(campaignIds: string[]) {
+    if (!campaignIds.length) return [];
+    return must(await supabase.from("design_assets").select("campaign_id, submission_id, bucket, storage_path, sort_order, created_at").in("campaign_id", campaignIds).order("created_at", { ascending: false }).limit(400));
+  },
   async list(campaignId: string): Promise<DesignSubmission[]> {
     const rows = must(await supabase.from("design_submissions").select("*, design_assets(*)").eq("campaign_id", campaignId).order("created_at", { ascending: false })) as unknown as DesignSubmission[];
     return rows.map((r) => ({ ...r, design_assets: [...r.design_assets].sort((a, b) => a.sort_order - b.sort_order) }));

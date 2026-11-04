@@ -55,21 +55,17 @@ Tinted backgrounds only for Health pills, Severity tags and the "Demo data" badg
 - Borders do the separating. Shadows only on overlays (drawer, menus, command palette).
 
 ## Layout
-- Sidebar 232px: workspace switcher, search (⌘K), 9 nav items (Playground added), "Your campaigns" list, user.
-- Top bar 46px: breadcrumb, Demo data badge when relevant, AI status, Ask Claude (Ctrl+J), theme, notifications.
-- Detail views open as a right drawer (560px) for peeking; "Open workspace" goes to the full campaign page.
-- **Campaign page = Canvas (changed 4 Nov 2026, replaces "the full campaign page with tabs").** On screens 1024px and wider a campaign opens as one pannable canvas. The old tabs remain as the "list view" (the tab row after Canvas) and are the only view on narrow screens.
-  - Pipeline cards, left to right: SOW, Requirements, Designs, Staging build; below: Findings, Tasks. Cards are compact (320px, 1px border, surface fill, no shadow beyond `shadow-sm`), with the standard status dot or pill, one metric, and small buttons. Not decorative: every card shows live data and every button works.
-  - Edges are 1.5px `line-strong`; an edge animates in the accent colour only while Claude is working on that step.
-  - Files can be dropped on the SOW and Designs cards. Clicking a card opens its detail in a 920px drawer (the existing tab content). Clicking a design screen opens a 1040px drawer with the screenshot and the findings pinned on it.
-  - Card positions can be dragged and are remembered per browser (never shared). There is no minimap: six cards do not need one.
-  - Light and dark follow the app theme through the colour tokens in `features/canvas/canvas.css`.
-- **Journey canvases (added 4 Nov 2026).** Inside the Canvas, a tab strip lists "All journeys" (the pipeline above) and one tab per journey (a campaign without journeys gets "Main journey"; designs submitted without a journey appear under "Unassigned"). The chosen journey is kept in the address (`?j=`).
-  - A journey canvas shows its design screens as nodes in flow order, left to right (240px wide, 1px border, thumbnail, status dot and label, design version, built-page comparison, journey test result). Error and success states hang under the screen they belong to, joined by a dashed edge. Zoomed far out the node shrinks to thumbnail and status.
-  - Selected nodes get the accent border and a 2px accent ring. A red count badge sits on the thumbnail when the screen has open findings.
-  - **Right inspector (400px, docked, replaces drawers on this canvas).** Nothing selected: the journey summary (track statuses, four counts, failing scenarios, actions). A screen selected: tabs Overview, Findings, Requirements, Tests, Tasks; findings are pinned on the screenshot with dashed, labelled "approximate" regions.
-  - Honesty rules: a screen never shows a built version it does not have ("Not compared yet" / "No build"); test results belong to the journey and are shown as such; a backend rule is never shown as passed from a screenshot; Claude's findings are drafts until a manager accepts them.
-- **Playground (`/playground`)**: the same canvas style as a scratchpad. A drop card, a card per item added, a Check card (campaign baseline, optional question) and a Result card (verdict pill, summary, findings, pinned regions). Nothing is saved unless the user presses Save.
+Journ is a workspace, not a set of pages. The campaign is the interface: it opens on its canvas, and everything else is one click away.
+
+- **Left rail (240px, collapsible to 60px; one slide-out menu below 1024px).** The wordmark, search (⌘K), then Home, My Inbox (with a count), Tasks, Projects, Playground. Under "Workspaces", your campaigns (recently opened first) with a coloured letter each. "New Project" and the account menu sit at the bottom; Team, Timeline, Reports, Settings, Import and Sign out live in the account menu. The rail never changes inside a campaign.
+- **Top bar (52px).** On ordinary pages: the page name. Inside a campaign it becomes the campaign bar: back to Projects, the campaign (letter icon, name, health), team avatars, Share (copies the link), Run tests (starts a Site check on the latest build), and a ⋯ menu (Campaign summary, Manage journeys, Copy link, Edit campaign). On the right, always: AI status, Ask Claude (Ctrl+J), theme, notifications.
+- **Campaign sections (a 44px row under the top bar):** Canvas, Requirements, Designs, Review, Development, Testing, Issues, Activity. The canvas is the home. The old tab addresses (overview, journeys, approvals, documents, ai-reviews, tasks) redirect to the section that now holds that content. A campaign page fills the window and does its own scrolling; other pages scroll as a page.
+- **Home** is a working surface, not a report: "Continue" (campaigns you were last in, with a cover of their first design screen), "Waiting for your review", "Assigned to you", recent activity, quick starts. **Projects** is a grid of campaign covers with a list option. **My Inbox** is one worklist: findings waiting for you, tasks assigned to you, updates.
+- Detail views open as a right drawer (up to 920px) for peeking.
+- **Dark is the default.** Light is one click away in the top bar; a saved choice always wins.
+
+### Canvas
+The canvas fills the campaign workspace: a **journey dropdown** (top left; "All journeys (pipeline)" is the last item and "Manage journeys" opens the journeys drawer), a **zoom toolbar** (top right: fit, zoom out, percentage, zoom in, full screen), the **inspector** docked on the right (400px; below 1024px it opens as a drawer), and the **dock** underneath (AI Review, Issues, Test Runs, Activity for the open journey; collapsible, remembered).
 
 ## Components
 - Tables: header 12px muted, rows with 1px dividers, hover row background, journeys as indented sub-rows.

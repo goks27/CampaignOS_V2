@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Background, Controls, Handle, Position, ReactFlow, useNodesState,
+  Background, Handle, Panel, Position, ReactFlow, useNodesState,
   type Edge, type Node, type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -33,6 +33,7 @@ import { AiReviewsTab } from "@/features/campaigns/tabs/AiReviewsTab";
 import { CampaignTasksTab } from "@/features/campaigns/tabs/CampaignTasksTab";
 import { ScreenFindings } from "./ScreenFindings";
 import { setAssistantHint } from "./assistantHint";
+import { CanvasTools } from "./CanvasControls";
 import { summarise, type Summary } from "./summary";
 
 type Panel = "requirements" | "designs" | "development" | "ai-reviews" | "tasks";
@@ -239,7 +240,8 @@ function useDark() {
 }
 
 // ---------------------------------------------------------------- the canvas
-export function PipelineCanvas({ campaign: c }: { campaign: CampaignWithRelations }) {
+export function PipelineCanvas({ campaign: c, selector }: { campaign: CampaignWithRelations; selector: React.ReactNode }) {
+  const rootRef = React.useRef<HTMLDivElement>(null);
   const { canEdit, me } = useAuth();
   const canSubmit = canEdit || (me?.role === "team_member" && c.campaign_members.some((m) => m.user_id === me.id));
   const toast = useToast();
@@ -306,7 +308,7 @@ export function PipelineCanvas({ campaign: c }: { campaign: CampaignWithRelation
           Claude can’t start yet: the connector isn’t running on this PC. Run <span className="font-mono text-xs">npm run claude</span> in the project folder and the checks begin by themselves.
         </p>
       )}
-      <div className="h-[calc(100vh-215px)] min-h-[520px] overflow-hidden rounded-box border border-line" data-testid="campaign-canvas">
+      <div ref={rootRef} className="min-h-0 flex-1 bg-bg" data-testid="campaign-canvas">
         <ReactFlow className="cos-flow" nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} colorMode={dark ? "dark" : "light"}
           fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.25} maxZoom={1.5} nodesConnectable={false} elementsSelectable
           proOptions={{ hideAttribution: true }} deleteKeyCode={null}
@@ -314,7 +316,8 @@ export function PipelineCanvas({ campaign: c }: { campaign: CampaignWithRelation
           onPaneClick={() => setAssistantHint(null)}
           onNodeDragStop={(_, __, all) => writePositions(c.id, Object.fromEntries(all.map((n) => [n.id, n.position])))}>
           <Background gap={24} size={1} color="rgb(var(--line))" />
-          <Controls showInteractive={false} />
+          <Panel position="top-left">{selector}</Panel>
+          <Panel position="top-right"><CanvasTools rootRef={rootRef} /></Panel>
         </ReactFlow>
       </div>
 
