@@ -2,22 +2,29 @@ import { supabase } from "./db";
 
 export type Bucket = "sow" | "designs" | "captures" | "documents";
 
+// Wide allowlist for documents and SOWs: office files, text, images, archives. Executables and scripts stay blocked.
+// Only PDFs are analysed by the AI worker for now; other formats are stored.
+export const DOC_TYPES = [
+  "application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif", "text/plain", "text/csv", "text/markdown",
+  "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip", "application/x-zip-compressed", "application/rtf",
+];
+const EXT_FALLBACK = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|rtf|zip|png|jpe?g|webp|gif)$/i;
+
 export const BUCKET_RULES: Record<Bucket, { maxBytes: number; types: string[] }> = {
-  sow: { maxBytes: 25 * 1024 * 1024, types: ["application/pdf"] },
+  sow: { maxBytes: 25 * 1024 * 1024, types: DOC_TYPES },
   designs: { maxBytes: 10 * 1024 * 1024, types: ["image/png", "image/jpeg", "image/webp"] },
   captures: { maxBytes: 10 * 1024 * 1024, types: ["image/png", "image/jpeg", "image/webp"] },
-  documents: {
-    maxBytes: 25 * 1024 * 1024,
-    types: ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain", "text/csv",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
-  },
+  documents: { maxBytes: 25 * 1024 * 1024, types: DOC_TYPES },
 };
 
 export function validateFile(bucket: Bucket, file: Blob & { name?: string }): string | null {
   const rule = BUCKET_RULES[bucket];
-  if (!rule.types.includes(file.type)) return `${file.name ?? "File"}: ${file.type || "unknown type"} is not allowed here.`;
+  const wide = bucket === "sow" || bucket === "documents";
+  if (!rule.types.includes(file.type) && !(wide && !file.type && EXT_FALLBACK.test(file.name ?? ""))) return `${file.name ?? "File"}: ${file.type || "unknown type"} is not allowed here.`;
   if (file.size > rule.maxBytes) return `${file.name ?? "File"} is ${(file.size / 1048576).toFixed(1)} MB; the limit is ${rule.maxBytes / 1048576} MB.`;
   return null;
 }

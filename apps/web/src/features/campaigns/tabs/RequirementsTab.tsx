@@ -70,8 +70,8 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
   };
 
   return (
-    <Section title="SOW documents" actions={canEdit && <Button size="sm" loading={upload.isPending && !target} onClick={() => pick(null)}><FileUp />Upload SOW (PDF)</Button>}>
-      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+    <Section title="SOW documents" actions={canEdit && <Button size="sm" loading={upload.isPending && !target} onClick={() => pick(null)}><FileUp />Upload SOW</Button>}>
+      <input ref={fileRef} type="file" className="hidden" onChange={onFile} />
       {error ? <ErrorState error={error} /> : isLoading ? <LoadingRows rows={2} /> : !data?.length ? (
         <Card><EmptyState icon={FileText} title="No SOW uploaded yet" body="Upload the client’s SOW as a PDF. The local AI worker extracts draft requirements with page references for you to verify. Scanned PDFs are read with local OCR."
           action={canEdit && <Button variant="primary" onClick={() => pick(null)}><FileUp />Upload SOW</Button>} /></Card>

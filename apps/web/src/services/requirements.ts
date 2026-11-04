@@ -25,7 +25,7 @@ export const sowService = {
     const path = `${campaignId}/${docId}/v${versionNo}-${safeName(file.name)}`;
     await storageService.upload("sow", path, file);
     if (isNew) {
-      must(await supabase.from("sow_documents").insert({ id: docId, campaign_id: campaignId, title: title || file.name.replace(/\.pdf$/i, "") }));
+      must(await supabase.from("sow_documents").insert({ id: docId, campaign_id: campaignId, title: title || file.name.replace(/\.[a-z0-9]{2,5}$/i, "") }));
     }
     const version = must(await supabase.from("sow_versions").insert({
       sow_document_id: docId, campaign_id: campaignId, version_no: versionNo, storage_path: path,
