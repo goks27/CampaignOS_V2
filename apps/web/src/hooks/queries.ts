@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { campaignsService } from "@/services/campaigns";
 import { teamService, type Profile } from "@/services/team";
 import { jobsService } from "@/services/jobs";
+import { connectorService } from "@/services/connector";
 import { notificationsService } from "@/services/activity";
 import { settingsService } from "@/services/settings";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +18,7 @@ export const qk = {
   activity: (scope: string) => ["activity", scope] as const,
   summary: ["summary"] as const,
   worker: ["worker"] as const,
+  connector: ["connector"] as const,
   jobs: (scope: string) => ["jobs", scope] as const,
   findings: (scope: string) => ["findings", scope] as const,
   requirements: (id: string) => ["requirements", id] as const,
@@ -88,6 +90,15 @@ export function useRealtimeBridge() {
 export function useWorkerState() {
   const { session } = useAuth();
   return useQuery({ queryKey: qk.worker, queryFn: jobsService.workerState, refetchInterval: 30_000, enabled: Boolean(session) });
+}
+
+/** Is the Claude connector (`npm run claude`) running on this PC? Null data means not reachable. */
+export function useConnectorStatus() {
+  const { session } = useAuth();
+  return useQuery({
+    queryKey: qk.connector, queryFn: connectorService.status, enabled: Boolean(session),
+    refetchInterval: (q) => (q.state.data?.busy ? 4_000 : 10_000), retry: false,
+  });
 }
 
 export function useNotifications() {

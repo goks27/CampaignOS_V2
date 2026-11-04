@@ -2,6 +2,7 @@ import { supabase, must, type Tables, type Insert, type Update } from "./db";
 import { storageService, safeName } from "./storage";
 import { sha256Hex } from "@/lib/utils";
 import { toPdf } from "@/lib/toPdf";
+import { connectorService } from "./connector";
 
 export type Requirement = Tables<"requirements">;
 export type SowVersion = Tables<"sow_versions">;
@@ -38,6 +39,7 @@ export const sowService = {
       file_name: converted ? `${original.name} (converted to PDF)` : original.name, size_bytes: file.size, content_hash: hash,
     }).select().single());
     const autoQueued = must(await supabase.rpc("finalize_sow_version", { p_version: version.id })) as number;
+    if (autoQueued > 0) void connectorService.wake(); // start right away if the Claude connector is running
     return { version, autoQueued, converted };
   },
   async pages(versionId: string): Promise<SowPage[]> {
@@ -48,6 +50,9 @@ export const sowService = {
 export const requirementsService = {
   async list(campaignId: string): Promise<Requirement[]> {
     return must(await supabase.from("requirements").select("*").eq("campaign_id", campaignId).order("ref"));
+  },
+  async get(id: string): Promise<Requirement> {
+    return must(await supabase.from("requirements").select("*").eq("id", id).single());
   },
   async create(input: Insert<"requirements">) {
     return must(await supabase.from("requirements").insert({ ...input, ref: "", origin: "manual" }).select().single());

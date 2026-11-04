@@ -1,7 +1,7 @@
-# Claude Code worker
+# Claude Code worker and connector
 
-Lets a Claude Code session do the AI analysis that the Python/Ollama worker does. Same queue, same permissions, same result
-format. Nothing is approved by the AI: every requirement lands as `draft`, every finding as `awaiting_review`.
+Lets Claude Code on this PC do the AI analysis that the Python/Ollama worker does. Same queue, same permissions, same result
+format. There are two ways to use it: the **connector** (automatic, the normal way) and the **CLI** (manual control). Nothing is approved by the AI: every requirement lands as `draft`, every finding as `awaiting_review`.
 
 ## Setup (once)
 1. In Supabase, make sure a worker user exists: sign up an Auth user and run
@@ -11,7 +11,37 @@ format. Nothing is approved by the AI: every requirement lands as `draft`, every
 3. `cd tools/claude-worker && npm install`
 4. `node tools/claude-worker/worker.mjs status` should say it signed in.
 
-## Using it
+## The connector (automatic)
+```
+npm run claude
+```
+Leave that window open. When you start a review in the dashboard (or a SOW upload / submission queues one automatically), the
+dashboard tells the connector, which claims the job, runs Claude Code on it and saves the result. Findings appear in the
+dashboard when it finishes (a SOW usually takes a minute or two). The top bar shows **Claude connected** while it runs.
+
+- Listens on `127.0.0.1:4317` only. Exposes `GET /status` and `POST /wake` and nothing else. Allowed origins: the localhost dev
+  server (ports 5173/5174) plus anything in `CLAUDE_CONNECTOR_ORIGINS` (comma separated, for example your Cloudflare Pages URL).
+- It also polls every 30 s, so a review is never missed.
+- Runs `claude -p` with the Read tool only, no web, no shell, no MCP servers, no saved session, in a scratch folder under the OS
+  temp directory (outside the repo). Answers are validated; a bad answer gets one retry with the problem list, then the job fails.
+- Optional settings in `services/local-ai-worker/.env`: `CLAUDE_MODEL` (default `sonnet`), `CLAUDE_CONNECTOR_PORT` (4317),
+  `CLAUDE_POLL_SECONDS` (30), `CLAUDE_JOB_TIMEOUT_SECONDS` (900), `CLAUDE_CONNECTOR_ORIGINS`.
+- Works from the dashboard on **this PC** only. A browser on another device cannot reach `127.0.0.1` on this PC.
+  Chrome may ask once to allow the site to connect to devices on your network; allow it.
+- Each analysis uses your Claude Code plan's usage.
+- Tests: `npm run claude:test`.
+
+## The dashboard assistant
+Press **Ctrl+J** (or click **Ask Claude** in the top bar) to open a Claude chat. It needs the connector running.
+- Claude reads campaigns, requirements, findings, tasks, reviews and activity (what you can see), and answers.
+- It proposes changes as **Confirm cards** (create or update tasks, add comments, draft or edit draft requirements, edit descriptive campaign fields, start AI reviews, assign an already accepted finding). Nothing happens until you click Confirm.
+- It can never approve or reject requirements, accept or dismiss findings, approve designs or builds, change stage or status, launch, delete, or touch roles, settings or credentials. Those stay with a manager.
+- `POST /assistant` runs Claude with no tools and no database access. The browser executes every read and write under your own session, so permissions (RLS) apply.
+- One-time setup for the audit trail ("via the Claude assistant" in the activity log): run `supabase/migrations/20261104000200_assistant_audit.sql` in the Supabase SQL editor. Without it everything works, but the panel shows a notice.
+- `CLAUDE_ASSISTANT_MODEL` in `services/local-ai-worker/.env` sets the model for chat (defaults to `CLAUDE_MODEL`).
+- Privacy: what Claude reads is sent to Anthropic through your Claude plan, like the review analyses.
+
+## Using the CLI (manual)
 Upload a SOW (or submit a design review) in the dashboard, then ask Claude Code: **"process the CampaignOS queue"**.
 Claude Code repeats: `claim` -> analyse -> write `result.json` -> `complete`, until the queue is empty, then `idle`.
 

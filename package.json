@@ -1,7 +1,9 @@
 {
   "name": "campaignos",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w apps/web --host",
     "build": "npm run build -w apps/web",
@@ -9,6 +11,8 @@
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:types": "supabase gen types typescript --local > apps/web/src/types/database.ts"
+    "db:types": "supabase gen types typescript --local > apps/web/src/types/database.ts",
+    "claude": "node tools/claude-worker/server.mjs",
+    "claude:test": "node --test tools/claude-worker/worker.test.mjs tools/claude-worker/connector.test.mjs tools/claude-worker/assistant.test.mjs"
   }
 }

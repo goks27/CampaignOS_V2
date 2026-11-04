@@ -6,7 +6,7 @@ import { KeyValue, PageHeader, Section, StatusDot, LoadingRows } from "@/compone
 import { REVIEW_TYPE_LABEL, type ReviewType } from "@/lib/labels";
 import { formatBytes, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { qk, useSettings, useWorkerState } from "@/hooks/queries";
+import { qk, useConnectorStatus, useSettings, useWorkerState } from "@/hooks/queries";
 import { useAction } from "@/hooks/useAction";
 import { settingsService } from "@/services/settings";
 import { useTheme } from "@/app/theme";
@@ -73,10 +73,15 @@ function WorkspaceName() {
 
 function WorkerSection() {
   const { data } = useWorkerState();
+  const connector = useConnectorStatus().data;
   const w = data?.worker;
   return (
     <Section title="Local AI worker">
       <Card className="p-4">
+        <div className="mb-3 rounded-box border border-line bg-side px-3 py-2 text-sm text-text-2">
+          <span className="font-medium text-text">Claude connector: </span>
+          {connector ? `running on this PC (${connector.claude.version}, model ${connector.model}). Reviews you start here are analysed right away.` : <>not running. Start it with <span className="font-mono text-xs">npm run claude</span> in the project folder to let the dashboard use Claude Code on this PC.</>}
+        </div>
         <div className="mb-3 flex items-center gap-2">
           <Cpu className="size-4 text-muted" />
           <StatusDot tone={data?.state === "online" ? "green" : data?.state === "busy" ? "blue" : "gray"}

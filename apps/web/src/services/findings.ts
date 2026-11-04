@@ -46,6 +46,9 @@ export const findingsService = {
     if (filter.statuses?.length) q = q.in("status", filter.statuses);
     return must(await q) as unknown as Finding[];
   },
+  async get(id: string): Promise<Finding> {
+    return must(await supabase.from("findings").select(SELECT).eq("id", id).single()) as unknown as Finding;
+  },
   async update(id: string, patch: Update<"findings">) {
     return must(await supabase.from("findings").update(patch).eq("id", id).select().single());
   },

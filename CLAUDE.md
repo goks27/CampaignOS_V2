@@ -36,7 +36,7 @@ AI does the analysis, the manager makes the decision, the team executes the corr
 - Backend: Supabase free tier (Postgres, Auth, Storage, Realtime). Supabase is the only source of truth.
 - Local AI worker: Python service in `services/local-ai-worker/`, running on Gokul's Windows 11 PC with an NVIDIA RTX 3060. It runs ALL long work: SOW extraction, OCR, design analysis and, later, Playwright.
 - Inference: Ollama on the same PC. Default model `qwen3-vl:8b`, set in config only.
-- The worker connects OUT to Supabase and polls for jobs. Nothing on the PC accepts inbound connections. Never expose Ollama (port 11434) or the worker to the internet. No tunnels.
+- The worker connects OUT to Supabase and polls for jobs. Nothing on the PC accepts inbound connections, with one exception: the Claude connector below, which listens on 127.0.0.1 only. Never expose Ollama (port 11434) or the worker to the internet. No tunnels.
 - No OpenAI, Anthropic or other metered AI APIs, and no silent cloud fallback. If the worker or model is offline, jobs stay queued and the UI says so.
 - Edge Functions only where Postgres functions cannot do the job.
 
@@ -44,7 +44,13 @@ AI does the analysis, the manager makes the decision, the team executes the corr
 Until Python and Ollama are set up on the PC, a Claude Code session may act as the worker through `tools/claude-worker/`.
 - It uses the same worker identity, queue functions, validation rules and result format as the Python worker (see the Worker identity section). It uses a Claude Code session, not an API key. No Anthropic or OpenAI API is called by any code in this repo.
 - It supports `sow_analysis`, `sow_vs_design` and `design_consistency`. Staging reviews (Playwright) stay with the Python worker.
-- It only runs while a session is open and asked to process the queue. Jobs wait in the queue otherwise. Everything it writes is a draft for a manager; it never approves anything.
+- **Claude connector (decided by Gokul, 4 Nov 2026):** `npm run claude` starts `tools/claude-worker/server.mjs`, which listens on `127.0.0.1:4317` ONLY. It exposes just `GET /status`, `POST /wake` (no payload) and `POST /assistant` (one chat turn, see below), accepts only the dashboard's origins plus localhost Host headers, and never receives credentials. The dashboard saves a review as the signed-in user (RLS, history and the duplicate guard still apply), then calls `/wake`. The connector signs in as the `worker` user, claims the job, runs Claude Code headlessly (`claude -p`, Read tool only, no web, no shell, no MCP, no saved session), validates the result, and completes the job. It also polls every 30 s. The only inbound listener allowed is this one; never bind it to another interface, never tunnel it.
+- **Dashboard assistant (decided by Gokul, 4 Nov 2026):** a Claude chat panel in the dashboard (`apps/web/src/features/assistant/`). `/assistant` runs `claude -p` with NO tools at all and has no database access. Claude can only reply in text or ask the BROWSER to run an action from a fixed catalogue (`features/assistant/tools.ts`). Reads run immediately and writes appear as Confirm cards; both run in the browser under the signed-in user's own session, so RLS applies and the connector never holds user credentials. Every confirmed change is also logged through `record_assistant_action` ("via the Claude assistant").
+  - The catalogue must NEVER include: approving or rejecting requirements, accepting or dismissing findings, approving designs or builds, changing campaign stage or status, launching, deleting, team roles, settings, credentials. `tools.test.ts` pins the exact tool list: adding a tool is a deliberate, reviewed change.
+  - Writes: draft requirements only (edits only while a requirement is draft or needs-clarification, original AI wording kept), findings can be assigned only after a manager accepted them, reviews are started without forcing re-runs.
+  - Data Claude reads (campaign names, requirements, findings, SOW text) is sent to Anthropic through the Claude Code session. Do not widen what the catalogue returns without telling Gokul.
+- It runs only while the connector is started on the PC. If it is not running, reviews wait in the queue and the UI says so. Everything it writes is a draft for a manager; it never approves anything.
+- It uses the Claude Code session on this PC, not an API key. Unattended use under Gokul's Claude plan has not been verified by us.
 - Jobs it completes record `model = "Claude Code"`. The Ollama architecture below remains the target for unattended running.
 
 ## Worker identity and permissions

@@ -1,5 +1,6 @@
 import { supabase, must, type Tables } from "./db";
 import { storageService, safeName } from "./storage";
+import { connectorService } from "./connector";
 import type { PreparedImage } from "@/lib/images";
 
 export type DesignSubmission = Tables<"design_submissions"> & { design_assets: Tables<"design_assets">[] };
@@ -43,6 +44,7 @@ export const designsService = {
     q = input.journeyId ? q.eq("journey_id", input.journeyId) : q.is("journey_id", null);
     await q;
     const autoQueued = must(await supabase.rpc("finalize_design_submission", { p_submission: sub.id })) as number;
+    if (autoQueued > 0) void connectorService.wake();
     return { submission: sub, autoQueued };
   },
   async setStatus(id: string, status: Tables<"design_submissions">["status"]) {

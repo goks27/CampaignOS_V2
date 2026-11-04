@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid, FolderKanban, ListChecks, Sparkles, Users, CalendarRange, BarChart3, Settings, Search, Moon, Sun,
-  Bell, ChevronDown, LogOut, ChevronRight, Upload,
+  Bell, ChevronDown, LogOut, ChevronRight, Upload, Sparkles as SparklesIcon,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { CommandMenu } from "./CommandMenu";
 import { AiStatusIndicator } from "./AiStatusIndicator";
+import { AssistantPanel } from "@/features/assistant/AssistantPanel";
 import { useTheme } from "./theme";
 
 const NAV = [
@@ -34,6 +35,7 @@ const NAV = [
 export function AppShell() {
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [mobileNav, setMobileNav] = React.useState(false);
+  const [assistantOpen, setAssistantOpen] = React.useState(false);
   const loc = useLocation();
   useRealtimeBridge();
 
@@ -42,6 +44,10 @@ export function AppShell() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCmdOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setAssistantOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -57,7 +63,7 @@ export function AppShell() {
       </aside>
       {mobileNav && <div className="fixed inset-0 z-20 bg-black/20 lg:hidden" onClick={() => setMobileNav(false)} />}
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onMenu={() => setMobileNav(true)} />
+        <TopBar onMenu={() => setMobileNav(true)} onAssistant={() => setAssistantOpen((o) => !o)} assistantOpen={assistantOpen} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-content px-4 py-[22px] sm:px-6">
             <ErrorBoundary resetKey={loc.pathname}><Outlet /></ErrorBoundary>
@@ -65,6 +71,7 @@ export function AppShell() {
         </main>
       </div>
       <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }
@@ -151,7 +158,7 @@ function useBreadcrumbs() {
   return { crumbs, demo };
 }
 
-function TopBar({ onMenu }: { onMenu: () => void }) {
+function TopBar({ onMenu, onAssistant, assistantOpen }: { onMenu: () => void; onAssistant: () => void; assistantOpen: boolean }) {
   const { crumbs, demo } = useBreadcrumbs();
   const { theme, toggle } = useTheme();
   return (
@@ -170,6 +177,9 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         {demo && <span className="ml-2"><DemoBadge /></span>}
       </nav>
       <AiStatusIndicator />
+      <Button variant={assistantOpen ? "secondary" : "ghost"} size="sm" onClick={onAssistant} aria-label="Ask Claude" aria-pressed={assistantOpen} title="Ask Claude (Ctrl+J)">
+        <SparklesIcon />Ask Claude
+      </Button>
       <Button variant="ghost" size="icon" onClick={toggle} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
         {theme === "dark" ? <Sun /> : <Moon />}
       </Button>

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { pdfPages, validate } from "./worker.mjs";
+import { pdfPages, validate } from "./core.mjs";
 
 // jsPDF is installed in apps/web; reuse it to build a tiny PDF instead of committing a binary fixture.
 const here = path.dirname(fileURLToPath(import.meta.url));

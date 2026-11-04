@@ -8,13 +8,14 @@ import { JOB_STATUS_LABEL, JOB_STATUS_TONE, REVIEW_TYPE_LABEL } from "@/lib/labe
 import { formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useAction } from "@/hooks/useAction";
-import { useProfiles, useWorkerState, qk } from "@/hooks/queries";
+import { useConnectorStatus, useProfiles, useWorkerState, qk } from "@/hooks/queries";
 import { jobsService } from "@/services/jobs";
 
 export function JobsTable({ campaignId }: { campaignId?: string }) {
   const { canEdit } = useAuth();
   const { name } = useProfiles();
   const worker = useWorkerState();
+  const connector = useConnectorStatus().data;
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.jobs(campaignId ?? "all"),
     queryFn: () => jobsService.list({ campaignId, limit: 60 }),
@@ -26,12 +27,12 @@ export function JobsTable({ campaignId }: { campaignId?: string }) {
   if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <Card><EmptyState title="No reviews have run yet" body="Start a SOW analysis on the Requirements tab, or a design or development review from their tabs." /></Card>;
-  const offline = worker.data && (worker.data.state === "offline" || worker.data.state === "not_set_up");
+  const offline = !connector && worker.data && (worker.data.state === "offline" || worker.data.state === "not_set_up");
   return (
     <>
       {offline && data.some((j) => j.status === "queued") && (
         <p className="mb-2 rounded-box border border-line bg-side px-3 py-2 text-sm text-text-2">
-          The AI worker is offline, so queued reviews are waiting. They start automatically when the worker on the AI PC connects. Nothing is sent to a cloud AI service.
+          Nothing is analysing right now, so queued reviews are waiting. Run <span className="font-mono text-xs">npm run claude</span> on this PC to start the Claude connector, and they start automatically. Nothing is sent to a cloud AI service by this app.
         </p>
       )}
       <Table>

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useWorkerState } from "@/hooks/queries";
+import { useConnectorStatus, useWorkerState } from "@/hooks/queries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { KeyValue } from "@/components/common";
 import { TONE_HEX } from "@/lib/labels";
@@ -8,14 +8,16 @@ import { timeAgo } from "@/lib/utils";
 /** Top-bar AI status per DESIGN.md. Offline is muted grey — an expected state, not an error. */
 export function AiStatusIndicator() {
   const { data, isLoading } = useWorkerState();
+  const connector = useConnectorStatus().data;
   if (isLoading || !data) return null;
   const { state, worker, queued } = data;
   const label =
-    state === "not_set_up" ? "Not set up"
+    connector ? (connector.busy ? "Claude analysing…" : `Claude connected${queued ? ` · ${queued} queued` : ""}`)
+    : state === "not_set_up" ? "Not set up"
       : state === "offline" ? "AI offline · jobs will wait"
         : state === "busy" ? `AI busy${queued ? ` · ${queued} queued` : ""}`
           : `AI online${queued ? ` · ${queued} queued` : ""}`;
-  const color = state === "online" ? TONE_HEX.green : state === "busy" ? TONE_HEX.blue : TONE_HEX.gray;
+  const color = connector ? (connector.busy ? TONE_HEX.blue : TONE_HEX.green) : state === "online" ? TONE_HEX.green : state === "busy" ? TONE_HEX.blue : TONE_HEX.gray;
   const modelReady = worker?.model_ready;
   return (
     <Popover>
@@ -24,11 +26,18 @@ export function AiStatusIndicator() {
         <span className="hidden sm:inline">{label}</span>
       </PopoverTrigger>
       <PopoverContent className="w-80">
-        <p className="section-title mb-2">Local AI worker</p>
-        {state === "not_set_up" ? (
+        <p className="section-title mb-2">{connector ? "Claude connector" : "Local AI worker"}</p>
+        {connector ? (
+          <KeyValue items={[
+            { label: "Status", value: connector.busy ? "Analysing a review" : "Connected, waiting for reviews" },
+            { label: "Doing now", value: connector.job ? connector.job.step : "—" },
+            { label: "Claude Code", value: <span className="font-mono text-xs">{connector.claude.version || "—"}</span> },
+            { label: "Model", value: <span className="font-mono text-xs">{connector.model}</span> },
+            { label: "Queue", value: `${queued} waiting` },
+          ]} />
+        ) : state === "not_set_up" ? (
           <p className="text-sm text-text-2">
-            No worker has connected yet. Install and start the worker on the AI PC — see <span className="font-mono text-xs">services/local-ai-worker/README.md</span>.
-            Reviews you start are queued until it connects.
+            Nothing is connected yet. To use Claude on this PC, run <span className="font-mono text-xs">npm run claude</span> in the project folder. Reviews you start wait until it is running.
           </p>
         ) : (
           <KeyValue items={[

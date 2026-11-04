@@ -1120,6 +1120,9 @@ isOneToOne: true
 "complete_review_job":
 { Args: { "p_job": string,"p_meta"?: Json,"p_result": Json }; Returns: Json
                            },
+"record_assistant_action":
+{ Args: { "p_campaign": string | null,"p_tool": string,"p_summary": string,"p_detail"?: Json }; Returns: undefined
+                           },
 "dashboard_summary":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },

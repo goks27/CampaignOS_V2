@@ -1,4 +1,5 @@
 import { supabase, must, type Tables, type Insert, type Update } from "./db";
+import { connectorService } from "./connector";
 
 export type TestEnvironment = Tables<"test_environments">;
 export type DevSubmission = Tables<"development_submissions">;
@@ -29,6 +30,7 @@ export const developmentService = {
   async createSubmission(input: Insert<"development_submissions">) {
     const sub = must(await supabase.from("development_submissions").insert(input).select().single());
     const autoQueued = must(await supabase.rpc("finalize_development_submission", { p_submission: sub.id })) as number;
+    if (autoQueued > 0) void connectorService.wake();
     return { submission: sub, autoQueued };
   },
   async updateSubmission(id: string, patch: Update<"development_submissions">) {

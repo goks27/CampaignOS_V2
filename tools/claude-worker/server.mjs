@@ -1,0 +1,190 @@
+#!/usr/bin/env node
+/**
+ * CampaignOS Claude connector.
+ *
+ * A small local program that lets the dashboard use Claude Code on this PC. Start it with `npm run claude`.
+ * - Binds to 127.0.0.1 only. It exposes just two things: GET /status and POST /wake. /wake carries no data.
+ * - Only dashboard origins may call it (localhost dev server, plus CLAUDE_CONNECTOR_ORIGINS), and the Host header must be localhost.
+ * - It does not trust the browser for anything. It signs in as the `worker` user, claims jobs from Supabase
+ *   (so database permissions, history and the duplicate guard all still apply), runs Claude Code on them,
+ *   and writes validated results back through complete_review_job.
+ * - It also polls every 30 seconds, so a review is never missed even if /wake did not arrive.
+ */
+import http from "node:http";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { Supabase, beat, claimJob, completeJob, config, failJob, JobFailed, ResultRejected } from "./core.mjs";
+import { analyse, SUPPORTED } from "./runner.mjs";
+import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
+
+const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
+const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
+
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, claude = { ok: true, version: "" }, log = console.log }) {
+  const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
+  const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
+  let draining = false, again = false, timer = null, hb = null, assistantBusy = false;
+
+  const note = (s) => { if (state.job) state.job.step = s; };
+
+  async function runOne(brief) {
+    state.busy = true;
+    state.job = { id: brief.id, type: brief.review_type, startedAt: new Date().toISOString(), step: "Starting" };
+    log(`[job ${brief.id.slice(0, 8)}] ${brief.review_type} started`);
+    const ac = new AbortController();
+    hb = setInterval(async () => {
+      try {
+        const r = await db.rpc("heartbeat_job", { p_job: brief.id });
+        await beat(db, cfg, { busy: true, jobId: brief.id });
+        if (r?.cancel_requested) ac.abort();
+      } catch (e) { log(`heartbeat failed: ${e.message}`); }
+    }, 30_000);
+    try {
+      await beat(db, cfg, { busy: true, jobId: brief.id });
+      const { result, meta } = await analyseJob(brief, { model: cfg.model, timeoutMs: cfg.jobTimeoutMs, signal: ac.signal, onStep: note });
+      note("Saving results");
+      const summary = await completeJob(db, cfg, brief, result, meta);
+      state.last = { id: brief.id, type: brief.review_type, status: summary?.status === "cancelled" ? "cancelled" : "completed", at: new Date().toISOString(), summary };
+      log(`[job ${brief.id.slice(0, 8)}] done ${JSON.stringify(summary)}`);
+    } catch (e) {
+      const cancelled = e instanceof JobFailed && e.detail?.cancelled;
+      const message = e instanceof ResultRejected ? `Claude's answer failed validation twice: ${e.problems.slice(0, 5).join("; ")}` : e.message;
+      try {
+        await failJob(db, cfg, brief.id, message, {
+          retryable: e instanceof JobFailed ? e.retryable : false,
+          detail: e instanceof ResultRejected ? { problems: e.problems.slice(0, 40) } : e.detail,
+        });
+      } catch (e2) { log(`could not report failure: ${e2.message}`); }
+      state.last = { id: brief.id, type: brief.review_type, status: cancelled ? "cancelled" : "failed", at: new Date().toISOString(), error: message };
+      log(`[job ${brief.id.slice(0, 8)}] ${cancelled ? "cancelled" : "failed"}: ${message}`);
+    } finally {
+      clearInterval(hb);
+      state.busy = false;
+      state.job = null;
+      try { await beat(db, cfg, { busy: false }); } catch { /* next poll retries */ }
+    }
+  }
+
+  /** Claims and runs jobs one at a time until the queue is empty. Safe to call at any moment. */
+  async function drain() {
+    if (draining) { again = true; return; }
+    draining = true;
+    try {
+      do {
+        again = false;
+        for (;;) {
+          let brief;
+          try { brief = await claimNext(db, cfg); } catch (e) {
+            if (e instanceof JobFailed) {
+              // The job was claimed but could not be prepared (bad file, limit). It is already reported as failed: carry on with the next one.
+              state.last = { id: e.jobId || "", type: "", status: "failed", at: new Date().toISOString(), error: e.message };
+              log(`job could not be prepared: ${e.message}`);
+              continue;
+            }
+            log(`claim failed: ${e.message}`);
+            break;
+          }
+          if (!brief) break;
+          await runOne(brief);
+        }
+      } while (again);
+    } finally { draining = false; }
+  }
+
+  function handle(req, res) {
+    const origin = req.headers.origin;
+    const json = (code, body) => { res.writeHead(code, { "Content-Type": "application/json", ...cors }); res.end(JSON.stringify(body)); };
+    const cors = {};
+    if (!HOST_OK.test(req.headers.host || "")) { res.writeHead(403); return res.end(); } // blocks DNS-rebinding
+    if (origin) {
+      if (!origins.has(origin)) { res.writeHead(403); return res.end(); }
+      Object.assign(cors, {
+        "Access-Control-Allow-Origin": origin, Vary: "Origin",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Private-Network": "true", "Access-Control-Max-Age": "600",
+      });
+    }
+    if (req.method === "OPTIONS") { res.writeHead(204, cors); return res.end(); }
+    const url = new URL(req.url || "/", "http://localhost");
+    if (req.method === "GET" && url.pathname === "/status") {
+      return json(200, { connector: "claude-code", claude, model: cfg.model, supports: SUPPORTED, assistant: true, busy: state.busy, job: state.job, last: state.last, startedAt: state.startedAt });
+    }
+    if (req.method === "POST" && url.pathname === "/assistant") {
+      // One assistant turn at a time. Review jobs run separately, so a long review never blocks a quick question.
+      if (Number(req.headers["content-length"] || 0) > MAX_BODY_BYTES) { res.setHeader("Connection", "close"); return json(413, { error: "Request is too large." }); }
+      if (assistantBusy) return json(429, { error: "Claude is still answering the previous message." });
+      if (!String(req.headers["content-type"] || "").startsWith("application/json")) return json(415, { error: "Send JSON." });
+      assistantBusy = true;
+      const ac = new AbortController();
+      res.on("close", () => { if (!res.writableEnded) ac.abort(); }); // browser went away: stop the model call
+      readBody(req, MAX_BODY_BYTES).then((body) => assistant(body, { model: cfg.assistantModel || cfg.model, signal: ac.signal }))
+        .then((out) => json(200, out))
+        .catch((e) => {
+          if (e instanceof BadRequest) return json(400, { error: e.message });
+          log(`assistant failed: ${e.message}`);
+          json(e instanceof JobFailed ? 502 : 500, { error: e instanceof JobFailed ? e.message : "The assistant failed. Check the connector window." });
+        })
+        .finally(() => { assistantBusy = false; });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/wake") {
+      void drain();
+      return json(202, { accepted: true, busy: state.busy });
+    }
+    return json(404, { error: "Not found" });
+  }
+
+  const server = http.createServer(handle);
+  return {
+    server, state, drain,
+    async start() {
+      await new Promise((resolve, reject) => { server.once("error", reject); server.listen(cfg.port, "127.0.0.1", resolve); });
+      timer = setInterval(async () => {
+        if (!state.busy) { try { await beat(db, cfg, { busy: false }); } catch (e) { log(`heartbeat failed: ${e.message}`); } }
+        void drain();
+      }, cfg.pollMs);
+      void drain();
+    },
+    async stop() { clearInterval(timer); clearInterval(hb); await new Promise((r) => server.close(r)); },
+  };
+}
+
+function readBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > limit) { reject(new BadRequest("Request is too large.")); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on("end", () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); } catch { reject(new BadRequest("Invalid JSON.")); } });
+    req.on("error", reject);
+  });
+}
+
+// ---------------------------------------------------------------- main
+function claudeInfo() {
+  const r = spawnSync("claude", ["--version"], { encoding: "utf8", windowsHide: true });
+  return r.status === 0 ? { ok: true, version: r.stdout.trim() } : { ok: false, version: "" };
+}
+
+if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
+  const log = (m) => console.log(`${new Date().toLocaleTimeString()}  ${m}`);
+  let cfg;
+  try { cfg = config(); } catch (e) { console.error(`ERROR: ${e.message}`); process.exit(1); }
+  const claude = claudeInfo();
+  if (!claude.ok) { console.error("ERROR: the `claude` command was not found. Install Claude Code and sign in, then try again."); process.exit(1); }
+  const db = new Supabase(cfg);
+  try { await db.signIn(); await beat(db, cfg, { busy: false }); } catch (e) { console.error(`ERROR: ${e.message}`); process.exit(1); }
+  const c = createConnector({ cfg, db, claude, log });
+  try { await c.start(); } catch (e) {
+    console.error(e.code === "EADDRINUSE" ? `ERROR: port ${cfg.port} is already in use. Is the connector already running?` : `ERROR: ${e.message}`);
+    process.exit(1);
+  }
+  log(`Claude connector running on http://127.0.0.1:${cfg.port}  (${claude.version}, model: ${cfg.model})`);
+  log(`Signed in as ${cfg.email}. Reviews started in the dashboard are analysed by Claude Code on this PC. Press Ctrl+C to stop.`);
+  const bye = async () => { try { await beat(db, cfg, { busy: false, message: "Claude connector stopped", ready: false }); } catch { /* offline */ } process.exit(0); };
+  process.on("SIGINT", bye);
+  process.on("SIGTERM", bye);
+}
