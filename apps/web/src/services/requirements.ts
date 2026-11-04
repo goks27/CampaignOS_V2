@@ -1,6 +1,7 @@
 import { supabase, must, type Tables, type Insert, type Update } from "./db";
 import { storageService, safeName } from "./storage";
 import { sha256Hex } from "@/lib/utils";
+import { toPdf } from "@/lib/toPdf";
 
 export type Requirement = Tables<"requirements">;
 export type SowVersion = Tables<"sow_versions">;
@@ -14,8 +15,11 @@ export const sowService = {
     return docs.map((d) => ({ ...d, sow_versions: [...d.sow_versions].sort((a, b) => b.version_no - a.version_no) }));
   },
   /** Uploads a PDF as a new document or a new version of an existing one. Earlier versions are kept. */
-  async upload(campaignId: string, file: File, documentId?: string, title?: string) {
-    const hash = await sha256Hex(await file.arrayBuffer());
+  async upload(campaignId: string, original: File, documentId?: string, title?: string) {
+    // Any allowed format is converted to PDF here (in the browser) so the worker can analyse it.
+    // The hash is of the ORIGINAL bytes: converted PDFs embed a creation date and would never match.
+    const hash = await sha256Hex(await original.arrayBuffer());
+    const { file, converted } = await toPdf(original);
     // Upload first, then create rows, so a failed upload never leaves an empty document behind.
     const isNew = !documentId;
     const docId = documentId ?? crypto.randomUUID();
@@ -24,15 +28,17 @@ export const sowService = {
     const versionNo = (prev[0]?.version_no ?? 0) + 1;
     const path = `${campaignId}/${docId}/v${versionNo}-${safeName(file.name)}`;
     await storageService.upload("sow", path, file);
+    // Keep the original next to the converted PDF.
+    if (converted) await storageService.upload("sow", `${campaignId}/${docId}/v${versionNo}-original-${safeName(original.name)}`, original);
     if (isNew) {
-      must(await supabase.from("sow_documents").insert({ id: docId, campaign_id: campaignId, title: title || file.name.replace(/\.[a-z0-9]{2,5}$/i, "") }));
+      must(await supabase.from("sow_documents").insert({ id: docId, campaign_id: campaignId, title: title || original.name.replace(/\.[a-z0-9]{2,5}$/i, "") }));
     }
     const version = must(await supabase.from("sow_versions").insert({
       sow_document_id: docId, campaign_id: campaignId, version_no: versionNo, storage_path: path,
-      file_name: file.name, size_bytes: file.size, content_hash: hash,
+      file_name: converted ? `${original.name} (converted to PDF)` : original.name, size_bytes: file.size, content_hash: hash,
     }).select().single());
     const autoQueued = must(await supabase.rpc("finalize_sow_version", { p_version: version.id })) as number;
-    return { version, autoQueued };
+    return { version, autoQueued, converted };
   },
   async pages(versionId: string): Promise<SowPage[]> {
     return must(await supabase.from("sow_pages").select("*").eq("sow_version_id", versionId).order("page_no"));

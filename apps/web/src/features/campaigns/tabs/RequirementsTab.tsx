@@ -54,7 +54,7 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
   const [target, setTarget] = React.useState<SowDocument | null>(null);
   const upload = useAction((f: File) => sowService.upload(c.id, f, target?.id), {
     invalidate: [key], error: "Upload failed",
-    success: (r) => `SOW v${r.version.version_no} uploaded${r.autoQueued ? " and queued for analysis" : ". Run the analysis when ready"}.`,
+    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}${r.autoQueued ? " and queued for analysis" : ". Run the analysis when ready"}.`,
   });
   const pick = (doc: SowDocument | null) => { setTarget(doc); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,7 +73,7 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
     <Section title="SOW documents" actions={canEdit && <Button size="sm" loading={upload.isPending && !target} onClick={() => pick(null)}><FileUp />Upload SOW</Button>}>
       <input ref={fileRef} type="file" className="hidden" onChange={onFile} />
       {error ? <ErrorState error={error} /> : isLoading ? <LoadingRows rows={2} /> : !data?.length ? (
-        <Card><EmptyState icon={FileText} title="No SOW uploaded yet" body="Upload the client’s SOW as a PDF. The local AI worker extracts draft requirements with page references for you to verify. Scanned PDFs are read with local OCR."
+        <Card><EmptyState icon={FileText} title="No SOW uploaded yet" body="Upload the client’s SOW (PDF, Word, Excel, PowerPoint, text or image; non-PDF files are converted to PDF). The local AI worker extracts draft requirements with page references for you to verify. Scanned PDFs are read with local OCR."
           action={canEdit && <Button variant="primary" onClick={() => pick(null)}><FileUp />Upload SOW</Button>} /></Card>
       ) : (
         <div className="space-y-2">
