@@ -1,4 +1,5 @@
 import * as React from "react";
+import { PHASES, phaseDone, phaseIndex } from "@/lib/phases";
 import { AlertTriangle, Inbox } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { STAGES, STAGE_LABEL, TONE_HEX, type Stage, type Tone } from "@/lib/labels";
@@ -40,6 +41,29 @@ export function StageRing({ stage, showLabel = true }: { stage: Stage; showLabel
       </svg>
       {showLabel && <span className="text-sm text-text">{STAGE_LABEL[stage]}</span>}
     </span>
+  );
+}
+
+/** Plan, Build, Review, Launch: where the campaign is, at a glance. The exact stage is spelled out beside it. */
+export function PhaseStrip({ stage }: { stage: Stage }) {
+  const now = phaseIndex(stage);
+  return (
+    <div className="inline-flex items-center gap-2 whitespace-nowrap" title={`Stage ${STAGES.indexOf(stage) + 1} of 7: ${STAGE_LABEL[stage]}`}>
+      <ol className="inline-flex items-center text-xs" aria-label="Phase">
+        {PHASES.map((p, i) => {
+          const done = phaseDone(stage, i);
+          const current = i === now && stage !== "completed";
+          return (
+            <li key={p} className="flex items-center gap-1" aria-current={current ? "step" : undefined}>
+              <span className={cn("size-1.5 rounded-full", done || current ? "bg-accent" : "bg-line-strong", current && "ring-2 ring-accent/25")} />
+              <span className={cn(current ? "font-medium text-text" : done ? "text-text-2" : "text-muted")}>{p}{current && <span className="font-normal text-text-2"> · {STAGE_LABEL[stage]}</span>}</span>
+              {i < PHASES.length - 1 && <span className={cn("mx-1.5 h-px w-4", done ? "bg-accent/50" : "bg-line-strong")} />}
+            </li>
+          );
+        })}
+      </ol>
+      {stage === "completed" && <span className="text-sm text-text-2">· Completed</span>}
+    </div>
   );
 }
 
@@ -89,7 +113,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="font-display text-2xl font-normal tracking-tight">{title}</h1>
         {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}

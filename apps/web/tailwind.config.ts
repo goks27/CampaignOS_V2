@@ -19,6 +19,7 @@ export default {
         "text-2": token("text-2"),
         muted: token("muted"),
         accent: token("accent"),
+        "on-accent": token("on-accent"),
         "st-green": "#2E9A5B",
         "st-blue": "#3A6FE0",
         "st-violet": "#7C5AD6",
@@ -29,6 +30,7 @@ export default {
       fontFamily: {
         sans: ['"Geist Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"Geist Mono Variable"', "ui-monospace", "monospace"],
+        display: ['"Instrument Serif"', "ui-serif", "Georgia", "serif"],
       },
       fontSize: {
         xs: ["12px", "1.5"],
@@ -36,6 +38,8 @@ export default {
         base: ["13px", "1.5"],
         lg: ["18px", "1.35"],
         xl: ["20px", "1.3"],
+        "2xl": ["28px", "1.15"],
+        "3xl": ["40px", "1.08"],
       },
       borderRadius: { ctl: "6px", item: "7px", box: "10px" },
       maxWidth: { content: "1280px" },

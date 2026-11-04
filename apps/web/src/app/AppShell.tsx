@@ -12,6 +12,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { notificationsService } from "@/services/activity";
 import { useQueryClient } from "@tanstack/react-query";
 import { Avatar, DemoBadge } from "@/components/common";
+import { Wordmark } from "@/components/brand";
 import {
   Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
   Kbd, Popover, PopoverContent, PopoverTrigger,
@@ -67,7 +68,7 @@ export function AppShell() {
         <TopBar onMenu={() => setMobileNav(true)} onAssistant={() => setAssistantOpen((o) => !o)} assistantOpen={assistantOpen} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-content px-4 py-[22px] sm:px-6">
-            <ErrorBoundary resetKey={loc.pathname}><Outlet /></ErrorBoundary>
+            <div key={loc.pathname.split("/").slice(0, 3).join("/")} className="page-enter"><ErrorBoundary resetKey={loc.pathname}><Outlet /></ErrorBoundary></div>
           </div>
         </main>
       </div>
@@ -86,11 +87,12 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="px-2.5 pt-2.5">
+        <Link to="/" className="mb-1.5 flex h-8 items-center rounded-item px-2 hover:bg-hover" aria-label="Journ home"><Wordmark size={22} /></Link>
         <DropdownMenu>
           <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-item px-2 py-1.5 text-left hover:bg-hover">
-            <span className="flex size-6 items-center justify-center rounded-ctl bg-accent text-xs font-semibold text-white">C</span>
+            <span className="flex size-6 items-center justify-center rounded-ctl border border-line-strong bg-surface text-xs font-semibold text-text-2">{(me?.workspaceName ?? "J").slice(0, 1).toUpperCase()}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">{me?.workspaceName ?? "CampaignOS"}</span>
+              <span className="block truncate text-sm font-semibold">{me?.workspaceName ?? "Workspace"}</span>
             </span>
             <ChevronDown className="size-3.5 text-muted" />
           </DropdownMenuTrigger>

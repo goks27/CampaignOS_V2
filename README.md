@@ -1,6 +1,8 @@
-# CampaignOS
+# Journ
 
-Octech's internal campaign operations and AI quality-control platform. It takes a campaign from client SOW to live deployment. AI does the analysis, the manager makes the decision, the team executes the correction.
+> Formerly CampaignOS. Journ is the working product name until trademark and domain checks clear. Repo, database, folder and command names still say campaignos.
+
+*Every project has a journey.* Octech's internal campaign operations and AI quality-control platform. It takes a campaign from client SOW to live deployment. AI does the analysis, the manager makes the decision, the team executes the correction.
 
 - **Web app:** React + Vite + TypeScript (`apps/web`), hosted on Cloudflare Pages.
 - **Backend:** Supabase (Postgres, Auth, Storage, Realtime) with Row Level Security on every table and bucket (`supabase/`).

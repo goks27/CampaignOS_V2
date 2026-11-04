@@ -1,6 +1,6 @@
-# CampaignOS — standing rules for Claude Code
+# Journ (formerly CampaignOS) — standing rules for Claude Code
 
-CampaignOS is Octech's internal campaign operations and AI quality-control platform.
+Journ (formerly CampaignOS; the name stays a working name until trademark and domain checks clear) is Octech's internal campaign operations and AI quality-control platform.
 Internal team only. Clients have no accounts.
 
 ## Source of truth

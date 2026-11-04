@@ -1,22 +1,32 @@
-# CampaignOS design system
+# Journ design system
 
-Light, Linear-style workspace. Calm, dense enough to scan, never decorative.
-Reference prototype: the CampaignOS dashboard artifact (light theme).
+Journ was CampaignOS (renamed 4 Nov 2026; the name is a working name until trademark and domain checks clear).
+Calm, precise and editorial: a workspace you can scan quickly, with technical detail where it helps and nothing decorative.
+
+## Brand
+- **Name:** Journ, always lowercase in the wordmark ("journ"), "Journ" in running text.
+- **Tagline:** Every project has a journey. **Descriptor:** A connected workspace to plan, manage, review and deliver digital experiences.
+- **Phases:** Plan, Build, Review, Launch. The seven detailed campaign stages map onto them (Plan: brief and planning; Build: design, development; Review: internal QA, client UAT; Launch: live deployment, completed). Show the phase at a glance and the exact stage beside the current phase.
+- **Philosophy:** every stage connected, every decision traceable. **Personality:** intelligent, structured, collaborative, precise.
+- **Voice:** plain, specific and calm. Say what happened and what to do next. No exclamation marks, no hype. AI output is always called a suggestion or a draft.
+- **Mark:** two points joined by one line (a journey, drawn once). **Wordmark:** the mark in the accent colour next to "journ" in the display serif, 22px in the sidebar and 34px on sign-in, where the line draws itself once (700ms). Favicon: the mark in white on an accent square. The product never uses the mark as decoration.
 
 ## Colour tokens
+Warm paper neutrals and one deep ink-blue accent. Defined as RGB triplets in `apps/web/src/index.css`.
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| bg | #FCFCFD | #111215 | App canvas |
-| side | #F6F6F8 | #0C0D10 | Sidebar, subtle wells |
-| surface | #FFFFFF | #16171B | Tables, lists, drawers |
-| hover | #F1F1F4 | #1E1F24 | Row and button hover |
-| active | #EBEBEF | #25262C | Selected nav item |
-| line | #E7E7EC | #25262C | Borders, row dividers |
-| line-strong | #D9D9E0 | #32333A | Inputs, secondary buttons |
-| text | #1C1D21 | #ECEDF0 | Primary text |
-| text-2 | #55575F | #B4B6BD | Secondary text |
-| muted | #8A8C95 | #7D7F88 | Labels, metadata |
-| accent | #3A50D9 | #7C8CF5 | Primary action, focus ring, current stage |
+| bg | #FAFAF7 | #10100F | App canvas |
+| side | #F4F4F0 | #0C0C0B | Sidebar, subtle wells |
+| surface | #FFFFFE | #161614 | Tables, lists, drawers, cards |
+| hover | #F0F0EB | #1E1E1C | Row and button hover |
+| active | #E9E9E3 | #262623 | Selected nav item |
+| line | #E5E4DE | #262623 | Borders, row dividers |
+| line-strong | #D6D5CD | #343430 | Inputs, secondary buttons, edges |
+| text | #1A1A18 | #EDECE8 | Primary text |
+| text-2 | #52524D | #B6B5AF | Secondary text |
+| muted | #807F78 | #807F78 | Labels, metadata |
+| accent | #3446CD | #8494FA | Primary action, focus ring, current phase |
+| on-accent | #FFFFFF | #10100F | Text on the accent colour (dark ink in dark mode, for contrast) |
 
 Status colours (dot + label, never a filled chip except Health and Severity):
 - Green #2E9A5B — Approved, Passed, Done, Verified, On track
@@ -29,9 +39,15 @@ Status colours (dot + label, never a filled chip except Health and Severity):
 Tinted backgrounds only for Health pills, Severity tags and the "Demo data" badge.
 
 ## Type
-- Geist (400, 500, 600). Geist Mono only for IDs such as `REQ-014`, `F-203`, versions and URLs.
-- Base 13px / 1.5. Small 12px. Section heading 13px/600. Page title 20px/600. Drawer title 18px/600.
+- **Interface:** Geist (400, 500, 600). Geist Mono only for IDs such as `REQ-014`, `F-203`, versions and URLs.
+- **Display:** Instrument Serif (400, and 400 italic for the tagline) for page titles, the wordmark and sign-in headings only. It is for titles, never for body text, buttons, tables or labels.
+- Base 13px / 1.5. Small 12px. Section heading 13px/600. **Page title 28px display serif** (`font-display text-2xl`), drawer title 18px/600. Sign-in wordmark 34px.
 - Tabular numbers on all counts and dates. Sentence case everywhere; no all-caps labels.
+
+## Motion
+- Short and quiet, only on arrival: page content fades up 4px in 180ms (`.page-enter`), the sign-in mark draws its line once, drawers slide 24px, toasts rise 8px.
+- Nothing moves while you are reading: no looping animation except the accent edge on the canvas while Claude is working, and the pulse on the "Claude is working" icon.
+- `prefers-reduced-motion` removes all of it.
 
 ## Spacing, radius, elevation
 - 4px grid. Row padding 9px 12px. Page padding 22px 24px. Max content width 1280px.

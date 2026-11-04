@@ -18,7 +18,7 @@ export const TARGET_FIELDS: { key: keyof ImportRow; label: string; required?: bo
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-/** Best-guess mapping of CSV headers to CampaignOS fields. Each header is used at most once. */
+/** Best-guess mapping of CSV headers to Journ campaign fields. Each header is used at most once. */
 export function autoMap(headers: string[]): Record<string, string> {
   const used = new Set<string>();
   const out: Record<string, string> = {};

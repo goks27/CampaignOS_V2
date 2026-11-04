@@ -1,4 +1,4 @@
-/* React Flow, restyled to the CampaignOS tokens (see docs/DESIGN.md). Light and dark follow the app theme. */
+/* React Flow, restyled to the Journ tokens (see docs/DESIGN.md). Light and dark follow the app theme. */
 .cos-flow { --xy-background-color: rgb(var(--bg)); --xy-edge-stroke: rgb(var(--line-strong)); --xy-edge-stroke-selected: rgb(var(--accent));
   --xy-connectionline-stroke: rgb(var(--accent)); --xy-minimap-background-color: rgb(var(--side)); --xy-minimap-mask-background-color: rgb(var(--bg) / 0.7);
   --xy-controls-button-background-color: rgb(var(--surface)); --xy-controls-button-background-color-hover: rgb(var(--hover));

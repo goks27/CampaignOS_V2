@@ -1,5 +1,7 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource/instrument-serif";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 @tailwind base;
 @tailwind components;
@@ -7,31 +9,34 @@
 
 /* DESIGN.md colour tokens as RGB triplets so Tailwind can apply opacity. */
 :root {
-  --bg: 252 252 253;
-  --side: 246 246 248;
-  --surface: 255 255 255;
-  --hover: 241 241 244;
-  --active: 235 235 239;
-  --line: 231 231 236;
-  --line-strong: 217 217 224;
-  --text: 28 29 33;
-  --text-2: 85 87 95;
-  --muted: 138 140 149;
-  --accent: 58 80 217;
+  /* Journ: warm paper neutrals, one deep ink-blue accent. */
+  --bg: 250 250 247;
+  --side: 244 244 240;
+  --surface: 255 255 254;
+  --hover: 240 240 235;
+  --active: 233 233 227;
+  --line: 229 228 222;
+  --line-strong: 214 213 205;
+  --text: 26 26 24;
+  --text-2: 82 82 77;
+  --muted: 128 127 120;
+  --accent: 52 70 205;
+  --on-accent: 255 255 255; /* text on the accent colour */
   color-scheme: light;
 }
 .dark {
-  --bg: 17 18 21;
-  --side: 12 13 16;
-  --surface: 22 23 27;
-  --hover: 30 31 36;
-  --active: 37 38 44;
-  --line: 37 38 44;
-  --line-strong: 50 51 58;
-  --text: 236 237 240;
-  --text-2: 180 182 189;
-  --muted: 125 127 136;
-  --accent: 124 140 245;
+  --bg: 16 16 15;
+  --side: 12 12 11;
+  --surface: 22 22 20;
+  --hover: 30 30 28;
+  --active: 38 38 35;
+  --line: 38 38 35;
+  --line-strong: 52 52 48;
+  --text: 237 236 232;
+  --text-2: 182 181 175;
+  --muted: 128 127 120;
+  --accent: 132 148 250;
+  --on-accent: 16 16 15; /* dark ink: white on the light dark-mode accent fails contrast */
   color-scheme: dark;
 }
 
@@ -57,6 +62,11 @@
 }
 
 @keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes page-in { from { transform: translateY(4px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes draw { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+/* Journ motion: short, quiet, and only on arrival. Nothing moves while you read (reduced-motion is honoured above). */
+.page-enter { animation: page-in 180ms ease-out both; }
+.mark-draw path { stroke-dasharray: 40; animation: draw 700ms ease-out 120ms both; }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 @media print {

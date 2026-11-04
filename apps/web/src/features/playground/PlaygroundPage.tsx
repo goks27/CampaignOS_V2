@@ -295,7 +295,7 @@ export function PlaygroundPage() {
   return (
     <PlayCtx.Provider value={ctx}>
       <div className="mb-3">
-        <h1 className="text-xl font-semibold">Playground</h1>
+        <h1 className="font-display text-2xl font-normal tracking-tight">Playground</h1>
         <p className="mt-1 text-sm text-text-2">Drop a SOW, designs or a staging URL and ask Claude whether you’re heading the right way. It’s a scratchpad: nothing is saved to a campaign unless you press Save.</p>
       </div>
       <div className="h-[calc(100vh-200px)] min-h-[520px] overflow-hidden rounded-box border border-line" data-testid="playground-canvas"

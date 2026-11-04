@@ -7,16 +7,17 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { Button, Field, Input } from "@/components/ui";
 import { friendly } from "@/components/toast";
+import { Wordmark } from "@/components/brand";
 
 function AuthFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-full items-center justify-center bg-bg px-4 py-12">
-      <div className="w-full max-w-[360px]">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-ctl bg-accent text-sm font-semibold text-white">C</span>
-          <span className="text-[15px] font-semibold">CampaignOS</span>
+      <div className="page-enter w-full max-w-[360px]">
+        <div className="mb-8">
+          <Wordmark size={34} animate />
+          <p className="mt-2 font-display text-lg italic text-muted">Every project has a journey.</p>
         </div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="font-display text-2xl font-normal tracking-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         <div className="mt-5">{children}</div>
       </div>

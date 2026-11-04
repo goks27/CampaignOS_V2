@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { useCampaign } from "@/hooks/queries";
 import { useAuth } from "@/lib/auth";
 import { Button, Tabs } from "@/components/ui";
-import { DemoBadge, ErrorState, LoadingRows, Pill, StageRing } from "@/components/common";
+import { DemoBadge, ErrorState, LoadingRows, Pill, PhaseStrip } from "@/components/common";
 import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { CampaignFormDialog } from "./CampaignForm";
@@ -66,12 +66,12 @@ export function CampaignWorkspace() {
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-xl font-semibold">{c.name}</h1>
+            <h1 className="truncate font-display text-2xl font-normal tracking-tight">{c.name}</h1>
             {c.is_demo && <DemoBadge />}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-2">
             <span>{c.clients?.name ?? "No client"}</span>
-            <StageRing stage={c.stage} />
+            <PhaseStrip stage={c.stage} />
             <Pill tone={HEALTH_TONE[c.health]}>{HEALTH_LABEL[c.health]}</Pill>
             <span className="num">Launch {formatDate(c.target_launch_date)}</span>
           </div>
