@@ -233,7 +233,7 @@ export function validate(result, brief) {
     return errs;
   }
 
-  const STAGING = ["design_vs_development", "functional_qa", "regression", "sow_vs_development"];
+  const STAGING = ["site_check", "design_vs_development", "functional_qa", "regression", "sow_vs_development"];
   if (STAGING.includes(type)) {
     const prefix = brief?.input?.capture_prefix || "";
     const keys = new Set((result.captures || []).map((x) => x.key));

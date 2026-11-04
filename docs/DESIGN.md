@@ -48,6 +48,11 @@ Tinted backgrounds only for Health pills, Severity tags and the "Demo data" badg
   - Files can be dropped on the SOW and Designs cards. Clicking a card opens its detail in a 920px drawer (the existing tab content). Clicking a design screen opens a 1040px drawer with the screenshot and the findings pinned on it.
   - Card positions can be dragged and are remembered per browser (never shared). There is no minimap: six cards do not need one.
   - Light and dark follow the app theme through the colour tokens in `features/canvas/canvas.css`.
+- **Journey canvases (added 4 Nov 2026).** Inside the Canvas, a tab strip lists "All journeys" (the pipeline above) and one tab per journey (a campaign without journeys gets "Main journey"; designs submitted without a journey appear under "Unassigned"). The chosen journey is kept in the address (`?j=`).
+  - A journey canvas shows its design screens as nodes in flow order, left to right (240px wide, 1px border, thumbnail, status dot and label, design version, built-page comparison, journey test result). Error and success states hang under the screen they belong to, joined by a dashed edge. Zoomed far out the node shrinks to thumbnail and status.
+  - Selected nodes get the accent border and a 2px accent ring. A red count badge sits on the thumbnail when the screen has open findings.
+  - **Right inspector (400px, docked, replaces drawers on this canvas).** Nothing selected: the journey summary (track statuses, four counts, failing scenarios, actions). A screen selected: tabs Overview, Findings, Requirements, Tests, Tasks; findings are pinned on the screenshot with dashed, labelled "approximate" regions.
+  - Honesty rules: a screen never shows a built version it does not have ("Not compared yet" / "No build"); test results belong to the journey and are shown as such; a backend rule is never shown as passed from a screenshot; Claude's findings are drafts until a manager accepts them.
 - **Playground (`/playground`)**: the same canvas style as a scratchpad. A drop card, a card per item added, a Check card (campaign baseline, optional question) and a Result card (verdict pill, summary, findings, pinned regions). Nothing is saved unless the user presses Save.
 
 ## Components

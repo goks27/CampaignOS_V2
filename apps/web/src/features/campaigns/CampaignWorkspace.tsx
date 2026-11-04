@@ -8,7 +8,7 @@ import { DemoBadge, ErrorState, LoadingRows, Pill, StageRing } from "@/component
 import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { CampaignFormDialog } from "./CampaignForm";
-import { CampaignCanvas } from "@/features/canvas/CampaignCanvas";
+import { CampaignCanvas } from "@/features/canvas/CanvasHome";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { RequirementsTab } from "./tabs/RequirementsTab";
 import { JourneysTab } from "./tabs/JourneysTab";

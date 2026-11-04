@@ -117,7 +117,7 @@ function AutomationSection() {
   const when: Record<ReviewType, string> = {
     sow_analysis: "when a new SOW version is uploaded", sow_vs_design: "when designs are submitted", design_consistency: "when designs are submitted",
     design_vs_development: "when a staging build is submitted", sow_vs_development: "when a staging build is submitted",
-    functional_qa: "when a staging build is submitted", regression: "when a staging build is submitted",
+    functional_qa: "when a staging build is submitted", regression: "when a staging build is submitted", site_check: "when a staging build is submitted (looks through the site for errors)",
   };
   return (
     <Section title="Automatic analysis">

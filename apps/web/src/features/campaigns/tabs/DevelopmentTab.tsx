@@ -127,7 +127,7 @@ function Submissions({ campaign: c }: { campaign: CampaignWithRelations }) {
   return (
     <Section title="Development submissions" actions={canSubmit && <Button size="sm" variant="primary" onClick={() => setCreating(true)}><Plus />Submit staging build</Button>}>
       {!data?.length ? (
-        <Card><EmptyState title="No staging builds submitted" body="Submit a staging URL with its version. Then run Design vs Development, SOW vs Development and functional QA on it." /></Card>
+        <Card><EmptyState title="No staging builds submitted" body="Submit a staging URL with its version. Claude looks through the site for errors (broken links and images, console errors, mobile problems, typos). If it does not start by itself, press Test now. You can also run Design vs Development, SOW vs Development and functional QA." /></Card>
       ) : (
         <Table>
           <thead><tr><Th>Version</Th><Th>Journey</Th><Th>Staging URL</Th><Th>Developer</Th><Th>Status</Th><Th>Submitted</Th>{canEdit && <Th>Run</Th>}</tr></thead>
@@ -142,7 +142,8 @@ function Submissions({ campaign: c }: { campaign: CampaignWithRelations }) {
                 <Td className="text-xs text-muted">{formatDateTime(s.created_at)}</Td>
                 {canEdit && <Td onClick={(e) => e.stopPropagation()} className="whitespace-nowrap">
                   <div className="flex gap-1">
-                    <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: s.id }} label="Visual" />
+                    <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="site_check" source={{ development_submission_id: s.id }} label="Test now" />
+                    <RunReviewButton size="sm" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: s.id }} label="Visual" />
                     <RunReviewButton size="sm" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: s.id }} label="Functional" />
                     <RunReviewButton size="sm" campaignId={c.id} reviewType="sow_vs_development" source={{ development_submission_id: s.id }} label="SOW" />
                     <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="regression" source={{ development_submission_id: s.id }} label="Regression" />
@@ -159,12 +160,12 @@ function Submissions({ campaign: c }: { campaign: CampaignWithRelations }) {
   );
 }
 
-export function SubmissionDialog({ campaign: c, onClose }: { campaign: CampaignWithRelations; onClose: () => void }) {
+export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { campaign: CampaignWithRelations; onClose: () => void; defaultJourney?: string }) {
   const { me } = useAuth();
   const { people } = usePeople();
   const envs = useQuery({ queryKey: [...qk.dev(c.id), "env"], queryFn: () => developmentService.environments(c.id) });
   const designs = useQuery({ queryKey: qk.designs(c.id), queryFn: () => designsService.list(c.id) });
-  const [journey, setJourney] = React.useState(c.journeys[0]?.id ?? "");
+  const [journey, setJourney] = React.useState(defaultJourney ?? c.journeys[0]?.id ?? "");
   const [env, setEnv] = React.useState("");
   const [version, setVersion] = React.useState("");
   const [url, setUrl] = React.useState(c.staging_url ?? "");
@@ -181,7 +182,7 @@ export function SubmissionDialog({ campaign: c, onClose }: { campaign: CampaignW
     version_label: version, staging_url: url, developer_id: developer || null,
     devices: Object.entries(devices).filter(([, v]) => v).map(([k]) => k), page_paths: paths.split(/[\n,]+/).map((p) => p.trim()).filter(Boolean),
     notes: notes || null,
-  }), { invalidate: [qk.dev(c.id)], success: (r) => `Build ${r.submission.version_label} submitted${r.autoQueued ? `; ${r.autoQueued} review(s) queued` : ""}.`, onSuccess: onClose });
+  }), { invalidate: [qk.dev(c.id)], success: (r) => `Build ${r.submission.version_label} submitted${r.autoQueued ? `; ${r.autoQueued} check(s) started` : ". Press Test now to check it"}.`, onSuccess: onClose });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Submit staging build" className="max-w-2xl"

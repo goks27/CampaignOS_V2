@@ -112,6 +112,7 @@ export const CAMPAIGN_ROLE_LABEL: Record<CampaignRole, string> = {
 };
 
 export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
+  site_check: "Site check",
   sow_analysis: "SOW analysis",
   sow_vs_design: "SOW vs Design",
   design_consistency: "Design consistency",
@@ -121,7 +122,7 @@ export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
   regression: "Regression review",
 };
 export const DESIGN_REVIEW_TYPES: ReviewType[] = ["sow_vs_design", "design_consistency"];
-export const DEV_REVIEW_TYPES: ReviewType[] = ["design_vs_development", "sow_vs_development", "functional_qa", "regression"];
+export const DEV_REVIEW_TYPES: ReviewType[] = ["site_check", "design_vs_development", "sow_vs_development", "functional_qa", "regression"];
 
 export const CATEGORY_LABEL: Record<RequirementCategory, string> = {
   user_journey: "User journey",

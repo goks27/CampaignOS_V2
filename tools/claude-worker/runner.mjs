@@ -12,7 +12,7 @@ import { CATEGORIES, CONFIDENCE, PRIORITY, ResultRejected, SEVERITY, validate, J
 
 const PROMPT_VERSIONS = { sow_analysis: "claude-sow-v1", sow_vs_design: "claude-design-v1", design_consistency: "claude-consistency-v1" };
 /** Staging reviews run in a real browser (staging.mjs, loaded only when needed). */
-const STAGING = ["design_vs_development", "functional_qa", "regression", "sow_vs_development"];
+const STAGING = ["site_check", "design_vs_development", "functional_qa", "regression", "sow_vs_development"];
 export const SUPPORTED = [...Object.keys(PROMPT_VERSIONS), ...STAGING];
 
 // ---------------------------------------------------------------- schemas (structured output)

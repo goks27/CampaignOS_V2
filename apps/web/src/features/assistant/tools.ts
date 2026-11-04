@@ -32,11 +32,11 @@ const FINDING_STATUS = z.enum(keys<FindingStatus>(FINDING_STATUS_LABEL));
 const CAMPAIGN_STATUS = z.enum(keys<CampaignStatus>(CAMPAIGN_STATUS_LABEL));
 const REQ_READ_STATUS = z.enum(["draft", "accepted", "rejected", "needs_clarification"]);
 /** Every review the Claude connector can run (staging reviews use a headless browser on this PC). */
-export const ASSISTANT_REVIEW_TYPES = ["sow_analysis", "sow_vs_design", "design_consistency", "design_vs_development", "functional_qa", "regression", "sow_vs_development"] as const;
+export const ASSISTANT_REVIEW_TYPES = ["site_check", "sow_analysis", "sow_vs_design", "design_consistency", "design_vs_development", "functional_qa", "regression", "sow_vs_development"] as const;
 type SourceKey = "sow_version_id" | "design_submission_id" | "development_submission_id";
 const REVIEW_SOURCE: Record<(typeof ASSISTANT_REVIEW_TYPES)[number], SourceKey> = {
   sow_analysis: "sow_version_id", sow_vs_design: "design_submission_id", design_consistency: "design_submission_id",
-  design_vs_development: "development_submission_id", functional_qa: "development_submission_id", regression: "development_submission_id", sow_vs_development: "development_submission_id",
+  site_check: "development_submission_id", design_vs_development: "development_submission_id", functional_qa: "development_submission_id", regression: "development_submission_id", sow_vs_development: "development_submission_id",
 };
 
 const uuid = z.string().uuid();
@@ -244,7 +244,7 @@ const writes: WriteTool[] = [
     },
   }),
   write({
-    name: "start_review", description: "Start an AI review. sow_analysis needs sow_version_id; sow_vs_design and design_consistency need design_submission_id; design_vs_development, functional_qa, regression and sow_vs_development test a staging build in a browser and need development_submission_id. Results are drafts for a manager.", params: "{campaign_id: uuid, review_type: sow_analysis|sow_vs_design|design_consistency|design_vs_development|functional_qa|regression|sow_vs_development, sow_version_id?: uuid, design_submission_id?: uuid, development_submission_id?: uuid}",
+    name: "start_review", description: "Start an AI review. sow_analysis needs sow_version_id; sow_vs_design and design_consistency need design_submission_id; site_check (looks through a staging site for errors; needs nothing else), design_vs_development, functional_qa, regression and sow_vs_development test a staging build in a browser and need development_submission_id. Results are drafts for a manager.", params: "{campaign_id: uuid, review_type: site_check|sow_analysis|sow_vs_design|design_consistency|design_vs_development|functional_qa|regression|sow_vs_development, sow_version_id?: uuid, design_submission_id?: uuid, development_submission_id?: uuid}",
     schema: z.object({ campaign_id: uuid, review_type: z.enum(ASSISTANT_REVIEW_TYPES), sow_version_id: uuid.optional(), design_submission_id: uuid.optional(), development_submission_id: uuid.optional() })
       .refine((a) => Boolean(a[REVIEW_SOURCE[a.review_type]]), (a) => ({ message: `${a.review_type} needs ${REVIEW_SOURCE[a.review_type]}`, path: [REVIEW_SOURCE[a.review_type]] })),
     describe: (a, l) => ({ title: "Start AI review", fields: present([["Campaign", l.campaign(a.campaign_id)], ["Review", a.review_type.replace(/_/g, " ")], ["Note", "Findings arrive as drafts for a manager"]]) }),

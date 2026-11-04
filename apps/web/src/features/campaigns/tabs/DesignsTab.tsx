@@ -117,13 +117,13 @@ function DecisionDialog({ campaign: c, sub, decision, onClose }: { campaign: Cam
 }
 
 /** `initialFiles`: files dropped onto the canvas, prepared as soon as the dialog opens. */
-export function UploadDialog({ campaign: c, onClose, initialFiles }: { campaign: CampaignWithRelations; onClose: () => void; initialFiles?: File[] }) {
+export function UploadDialog({ campaign: c, onClose, initialFiles, defaultJourney }: { campaign: CampaignWithRelations; onClose: () => void; initialFiles?: File[]; defaultJourney?: string }) {
   const toast = useToast();
   const { data: settings } = useSettings();
   const limits = (settings?.limits ?? {}) as { image_long_edge?: number; max_pdf_pages?: number; max_screens_per_review?: number };
   const longEdge = limits.image_long_edge ?? 1600;
   const [mode, setMode] = React.useState<"upload" | "figma">("upload");
-  const [journey, setJourney] = React.useState(c.journeys[0]?.id ?? "");
+  const [journey, setJourney] = React.useState(defaultJourney ?? c.journeys[0]?.id ?? "");
   const [title, setTitle] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [figmaUrl, setFigmaUrl] = React.useState("");

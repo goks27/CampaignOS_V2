@@ -163,7 +163,8 @@ function BuildNode() {
       footer={canEdit && <>
         <Button size="sm" variant={b ? "secondary" : "primary"} onClick={addBuild}><Globe />{b ? "New build" : "Add staging URL"}</Button>
         {b && !s.build.working && <>
-          <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: b.id }} label="Visual" />
+          <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="site_check" source={{ development_submission_id: b.id }} label="Test now" />
+          <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: b.id }} label="Visual" />
           <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: b.id }} label="Scenarios" />
           <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="sow_vs_development" source={{ development_submission_id: b.id }} label="SOW" />
         </>}
@@ -172,9 +173,9 @@ function BuildNode() {
         <>
           <p className="font-medium">{b.version_label}</p>
           <p className="truncate text-xs text-muted" title={b.staging_url}>{b.staging_url}</p>
-          <p className="mt-1 text-xs text-muted">Opened in a real browser on this PC. Visual diffs, scenarios and console errors.</p>
+          <p className="mt-1 text-xs text-muted">Claude opens it in a real browser on this PC and looks through the site for errors. Press Test now to run it again.</p>
         </>
-      ) : <p className="text-text-2">Add the staging URL. Claude opens the pages on desktop and mobile, compares them with the design and runs your scenarios.</p>}
+      ) : <p className="text-text-2">Add the staging URL. Claude looks through the site on desktop and mobile for broken links, errors and layout problems, and can compare it with the design.</p>}
     </CardShell>
   );
 }
@@ -238,7 +239,7 @@ function useDark() {
 }
 
 // ---------------------------------------------------------------- the canvas
-export function CampaignCanvas({ campaign: c }: { campaign: CampaignWithRelations }) {
+export function PipelineCanvas({ campaign: c }: { campaign: CampaignWithRelations }) {
   const { canEdit, me } = useAuth();
   const canSubmit = canEdit || (me?.role === "team_member" && c.campaign_members.some((m) => m.user_id === me.id));
   const toast = useToast();
