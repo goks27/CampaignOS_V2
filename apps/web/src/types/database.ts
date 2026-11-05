@@ -469,6 +469,116 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"journey_edges": {
+                  Row: {
+                    "campaign_id": string,"journey_id": string | null,"label": string,"source_id": string,"target_id": string,"created_at": string,"created_by": string | null,"id": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "campaign_id": string,"journey_id"?: string | null,"label"?: string,"source_id": string,"target_id": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "campaign_id"?: string,"journey_id"?: string | null,"label"?: string,"source_id"?: string,"target_id"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "journey_edges_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "journey_edges_source_id_fkey"
+      columns: ["source_id"]
+isOneToOne: false
+      referencedRelation: "journey_nodes"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "journey_edges_target_id_fkey"
+      columns: ["target_id"]
+isOneToOne: false
+      referencedRelation: "journey_nodes"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"journey_nodes": {
+                  Row: {
+                    "campaign_id": string,"config": Json,"journey_id": string | null,"kind": string,"label": string,"pos_x": number,"pos_y": number,"screen_key": string | null,"created_at": string,"created_by": string | null,"id": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "campaign_id": string,"config"?: Json,"journey_id"?: string | null,"kind": string,"label"?: string,"pos_x"?: number,"pos_y"?: number,"screen_key"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "campaign_id"?: string,"config"?: Json,"journey_id"?: string | null,"kind"?: string,"label"?: string,"pos_x"?: number,"pos_y"?: number,"screen_key"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "journey_nodes_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "journey_nodes_journey_id_fkey"
+      columns: ["journey_id"]
+isOneToOne: false
+      referencedRelation: "journeys"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"node_requirements": {
+                  Row: {
+                    "campaign_id": string,"created_at": string,"created_by": string | null,"node_id": string,"requirement_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "campaign_id": string,"created_at"?: string,"created_by"?: string | null,"node_id": string,"requirement_id": string
+                  }
+                  Update: {
+                    "campaign_id"?: string,"created_at"?: string,"created_by"?: string | null,"node_id"?: string,"requirement_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "node_requirements_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "node_requirements_node_id_fkey"
+      columns: ["node_id"]
+isOneToOne: false
+      referencedRelation: "journey_nodes"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "node_requirements_requirement_id_fkey"
+      columns: ["requirement_id"]
+isOneToOne: false
+      referencedRelation: "requirements"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"brand_assets": {
+                  Row: {
+                    "campaign_id": string,"file_name": string,"kind": string,"mime_type": string | null,"size_bytes": number | null,"storage_path": string,"created_at": string,"created_by": string | null,"id": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "campaign_id": string,"file_name": string,"kind"?: string,"mime_type"?: string | null,"size_bytes"?: number | null,"storage_path": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "campaign_id"?: string,"file_name"?: string,"kind"?: string,"mime_type"?: string | null,"size_bytes"?: number | null,"storage_path"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "brand_assets_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"milestones": {
                   Row: {
                     "campaign_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"due_date": string,"id": string,"journey_id": string | null,"stage": Database["public"]['Enums']["campaign_stage"] | null,"title": string,"updated_at": string,"version": number
@@ -1122,6 +1232,9 @@ isOneToOne: true
                            },
 "record_assistant_action":
 { Args: { "p_campaign": string | null,"p_tool": string,"p_summary": string,"p_detail"?: Json }; Returns: undefined
+                           },
+"ensure_journey_graph":
+{ Args: { "p_campaign": string,"p_journey": string | null,"p_nodes": Json,"p_edges": Json }; Returns: boolean
                            },
 "dashboard_summary":
 { Args: Record<PropertyKey, never>; Returns: Json

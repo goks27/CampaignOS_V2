@@ -55,7 +55,7 @@ cd services/local-ai-worker && ruff check app tests && mypy && pytest
 ```
 apps/web/                  React app (services/* is the only code that talks to Supabase)
 services/local-ai-worker/  Python worker, prompts, benchmark, Windows scripts
-supabase/migrations/       Schema, RLS, job functions, storage policies
+supabase/migrations/       Schema, RLS, job functions, storage policies, journey graph (run new files once in the Supabase SQL editor on a hosted project)
 supabase/tests/            pgTAP tests (permissions, jobs, worker isolation)
 supabase/seed.sql          Local-only demo data
 docs/                      PRD, build plan, design system, setup and deploy guides

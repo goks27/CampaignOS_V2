@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
-import { Check, ChevronDown, Maximize, Minus, Plus, Route, Scan, Workflow } from "lucide-react";
+import { Check, ChevronDown, Map as MapIcon, Maximize, Minus, Plus, Route, Scan, Workflow } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export function JourneySelect({ tabs, current, onPick, onManage }: { tabs: Journ
 }
 
 /** Zoom, fit and full screen for a canvas. Must be rendered inside <ReactFlow>. */
-export function CanvasTools({ rootRef }: { rootRef: React.RefObject<HTMLElement | null> }) {
+export function CanvasTools({ rootRef, minimap }: { rootRef: React.RefObject<HTMLElement | null>; minimap?: { on: boolean; toggle: () => void } }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const zoom = useStore((s) => s.transform[2]);
   const [full, setFull] = React.useState(false);
@@ -59,6 +59,11 @@ export function CanvasTools({ rootRef }: { rootRef: React.RefObject<HTMLElement 
         <span className="w-12 text-center text-xs text-text-2 num" aria-live="polite">{Math.round(zoom * 100)}%</span>
         <button className={btn} onClick={() => void zoomIn({ duration: 150 })} aria-label="Zoom in"><Plus className="size-4" /></button>
       </div>
+      {minimap && (
+        <div className="flex items-center rounded-box border border-line-strong bg-surface p-0.5 shadow-sm">
+          <button className={cn(btn, minimap.on && "bg-active text-text")} onClick={minimap.toggle} aria-label={minimap.on ? "Hide the minimap" : "Show the minimap"} aria-pressed={minimap.on} title="Minimap (M)"><MapIcon className="size-4" /></button>
+        </div>
+      )}
       <div className="flex items-center rounded-box border border-line-strong bg-surface p-0.5 shadow-sm">
         <button className={cn(btn, full && "bg-active text-text")} onClick={toggleFull} aria-label={full ? "Exit full screen" : "Full screen"} aria-pressed={full} title="Full screen"><Maximize className="size-4" /></button>
       </div>

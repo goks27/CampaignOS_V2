@@ -12,7 +12,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { Browser } from "./browser.mjs";
+import { Browser, startFrames } from "./browser.mjs";
+import { live } from "./live.mjs";
+import { parseExtras } from "./login.mjs";
 import { NetGuard } from "./netguard.mjs";
 import { cropPair, downscale, pixelDiff, size, tileForModel } from "./images.mjs";
 import { JobFailed } from "./core.mjs";
@@ -214,9 +216,15 @@ Return {"differences": [{region, relevant, title, severity, description, expecte
     Browser.attachListeners(page, consoleLog, failed);
     page.setDefaultTimeout(15_000);
     let result = "verified", actual = "All steps passed.", error = null, shot = null;
+    const stopFrames = startFrames(page);
+    live.where({ device });
     try {
       for (const [i, s] of (c.steps ?? []).entries()) {
         const a = s.action, target = String(s.target ?? "");
+        live.step(`Step ${i + 1} of ${c.steps.length}: ${a}${target ? ` "${target.slice(0, 50)}"` : ""}`);
+        // Never show a login being typed: the picture stops while credentials are entered and resumes once the page has moved on.
+        if (a === "fill" && (/\{\{(username|password)\}\}/.test(String(s.value ?? "")) || /pass(word)?|pin|otp|code/i.test(target))) { live.pause(true); live.step("Entering login details (picture paused)"); }
+        else if (a === "click" || a === "goto") setTimeout(() => live.pause(false), 1500);
         if (a === "goto") {
           const url = new URL(target.replace(/^\//, ""), this.base).toString();
           const { ok, why } = await this.guard.check(url);
@@ -244,6 +252,8 @@ Return {"differences": [{region, relevant, title, severity, description, expecte
     if (result !== "verified") {
       try { shot = await this.upload(await page.screenshot({ fullPage: false }), `fail-${c.title}`); } catch { shot = null; }
     }
+    stopFrames();
+    live.pause(false);
     await ctx.close();
     return { test_case_id: c.id, result, actual, error, duration_ms: Date.now() - t0, evidence: { screenshot: shot, console: consoleLog.slice(0, 20), failed_requests: failed.slice(0, 20) } };
   }
@@ -345,11 +355,8 @@ export async function runStaging(brief, opts) {
     const c = (await opts.db.rpc("worker_get_credentials", { p_job: brief.id })) ?? {};
     run.creds = Object.fromEntries(Object.entries(c).filter(([, v]) => v).map(([k, v]) => [k, String(v)]));
   }
-  let httpCredentials = null;
-  if (run.creds.extra?.includes(":")) {
-    const i = run.creds.extra.indexOf(":");
-    httpCredentials = { username: run.creds.extra.slice(0, i), password: run.creds.extra.slice(i + 1) };
-  }
+  // The "extra" box: a user:pass line is HTTP basic auth for the staging server; "Label = value" lines are further login details (an OTP, a PIN).
+  const httpCredentials = parseExtras(run.creds.extra).basic;
   const started = Date.now();
   const browser = await (opts.openBrowser ? opts.openBrowser(run.guard, httpCredentials) : new Browser(run.guard, httpCredentials).open());
   try {

@@ -19,6 +19,7 @@ export const qk = {
   summary: ["summary"] as const,
   worker: ["worker"] as const,
   connector: ["connector"] as const,
+  live: ["live"] as const,
   jobs: (scope: string) => ["jobs", scope] as const,
   findings: (scope: string) => ["findings", scope] as const,
   requirements: (id: string) => ["requirements", id] as const,
@@ -84,6 +85,11 @@ export function useRealtimeBridge() {
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [qc, me]);
+}
+
+/** The running job as the connector sees it (steps and a picture of the test browser). Polled once a second, and only while a job is running. */
+export function useLive(running: boolean) {
+  return useQuery({ queryKey: qk.live, queryFn: connectorService.live, enabled: running, refetchInterval: 1_000, retry: false, staleTime: 0 });
 }
 
 /** Worker status; re-checked every 30 s so "offline" appears even without a new heartbeat. */

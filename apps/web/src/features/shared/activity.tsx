@@ -14,7 +14,7 @@ const ENTITY: Record<string, string> = {
   sow_versions: "SOW version", requirements: "requirement", design_submissions: "design submission", findings: "finding",
   review_jobs: "AI review", test_environments: "test environment", development_submissions: "development submission",
   qa_test_cases: "test scenario", approvals: "approval", client_feedback: "client feedback", deployments: "deployment",
-  milestones: "milestone", documents: "document",
+  milestones: "milestone", documents: "document", journey_nodes: "journey step", journey_edges: "journey connection", brand_assets: "brand asset",
 };
 
 function statusLabel(table: string, v: string) {

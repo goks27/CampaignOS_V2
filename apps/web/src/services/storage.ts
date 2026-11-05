@@ -1,6 +1,7 @@
 import { supabase } from "./db";
+import { BRAND_EXTENSIONS, brandMime } from "@/lib/brand";
 
-export type Bucket = "sow" | "designs" | "captures" | "documents";
+export type Bucket = "sow" | "designs" | "captures" | "documents" | "brand";
 
 // Wide allowlist for documents and SOWs: office files, text, images, archives. Executables and scripts stay blocked.
 // Only PDFs are analysed by the AI worker for now; other formats are stored.
@@ -19,10 +20,17 @@ export const BUCKET_RULES: Record<Bucket, { maxBytes: number; types: string[] }>
   designs: { maxBytes: 10 * 1024 * 1024, types: ["image/png", "image/jpeg", "image/webp"] },
   captures: { maxBytes: 10 * 1024 * 1024, types: ["image/png", "image/jpeg", "image/webp"] },
   documents: { maxBytes: 25 * 1024 * 1024, types: DOC_TYPES },
+  // Brand assets: pictures (SVG included), fonts, a brand guide. Scripts, pages and executables stay blocked.
+  brand: { maxBytes: 25 * 1024 * 1024, types: [] },
 };
 
 export function validateFile(bucket: Bucket, file: Blob & { name?: string }): string | null {
   const rule = BUCKET_RULES[bucket];
+  if (bucket === "brand") {
+    const named = file.name ?? "File";
+    if (!brandMime(file)) return `${named}: that file type is not allowed here. Use ${BRAND_EXTENSIONS.join(", ")}.`;
+    return file.size > rule.maxBytes ? `${named} is ${(file.size / 1048576).toFixed(1)} MB; the limit is ${rule.maxBytes / 1048576} MB.` : null;
+  }
   const wide = bucket === "sow" || bucket === "documents";
   if (!rule.types.includes(file.type) && !(wide && !file.type && EXT_FALLBACK.test(file.name ?? ""))) return `${file.name ?? "File"}: ${file.type || "unknown type"} is not allowed here.`;
   if (file.size > rule.maxBytes) return `${file.name ?? "File"} is ${(file.size / 1048576).toFixed(1)} MB; the limit is ${rule.maxBytes / 1048576} MB.`;
@@ -41,8 +49,8 @@ export const storageService = {
     if (error) throw new Error(error.message);
     return path;
   },
-  async signedUrl(bucket: Bucket, path: string, expiresIn = 3600) {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+  async signedUrl(bucket: Bucket, path: string, expiresIn = 3600, opts?: { download?: boolean | string }) {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn, opts?.download ? { download: opts.download } : undefined);
     if (error) throw new Error(error.message);
     return data.signedUrl;
   },

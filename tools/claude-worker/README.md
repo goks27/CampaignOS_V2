@@ -149,3 +149,9 @@ Run by the connector in headless Chromium (Playwright). One-time setup: `npm run
 - **sow_vs_development**: scenario results for linked requirements, screenshot checks for visible ones, and "Needs verification" for backend rules.
 - The page is opened from THIS PC, so the staging site must be reachable from it (VPN included). The domain must be in the environment's or Settings' allowed domains. Private and local addresses are always refused.
 - Limits: a review that runs past the job timeout (30 minutes by default) stops with a message. Test fewer pages or devices. Screenshots over 10 MB are re-encoded as JPEG.
+
+## Site check on every device
+A site check opens every page it finds on seven emulated devices (desktop, laptop, iPhone 15, iPhone SE, Pixel 7, Galaxy S9+, iPad) and reports problems per device. The devices are Chromium emulations, not physical phones and not Safari. If the environment has stored credentials it signs in through the login form once per device; add anything else the login asks for (an OTP, a PIN) to the environment's extra details as `Label = value` lines. Hosts outside the environment's allowed domains are not loaded: the report lists them so you can add them (for example your image CDN).
+
+## Live view
+While a job runs, `GET /live` returns the steps and where the browser is, and `GET /live/frame` returns the latest small JPEG of the test browser (204 when there is none). Both are 127.0.0.1 only, origin-checked, held in memory and cleared when the job ends. The dashboard shows them as a card bottom right. Restart the connector (`npm run claude`) after updating to get it.

@@ -9,5 +9,11 @@
 .cos-flow .react-flow__node { cursor: default; }
 .cos-flow .react-flow__controls { border: 1px solid rgb(var(--line)); border-radius: 8px; overflow: hidden; }
 .cos-flow .react-flow__minimap { border: 1px solid rgb(var(--line)); border-radius: 8px; overflow: hidden; }
+.cos-flow .react-flow__minimap-node { fill: rgb(var(--line-strong)); stroke: none; }
+.cos-flow .react-flow__edge-textbg { fill: rgb(var(--bg)); }
+.cos-flow .react-flow__edge-text { fill: rgb(var(--text-2)); font-size: 12px; }
+.cos-flow .react-flow__edge.selected .react-flow__edge-path, .cos-flow .react-flow__edge:hover .react-flow__edge-path { stroke: rgb(var(--accent)); stroke-width: 2; }
+.cos-flow .react-flow__connection-path { stroke-width: 2; }
+.cos-flow .react-flow__handle { cursor: crosshair; }
 .cos-flow .react-flow__attribution { display: none; }
 .cos-drop-active { outline: 2px dashed rgb(var(--accent)); outline-offset: 2px; }

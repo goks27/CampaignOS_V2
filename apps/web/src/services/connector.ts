@@ -17,6 +17,13 @@ export type ConnectorStatus = {
   startedAt: string;
 };
 
+/** What the connector is doing right now, for the live view. Held in memory on the PC; nothing is stored. */
+export type LiveState = { active: false } | {
+  active: true; jobId: string; type: string; startedAt: number; paused: boolean; seq: number; hasFrame: boolean;
+  steps: { at: number; text: string }[];
+  where: { url?: string; device?: string; pageNo?: number; pageTotal?: number } | null;
+};
+
 async function call(path: string, init?: RequestInit): Promise<Response | null> {
   try {
     return await fetch(`${CONNECTOR_URL}${path}`, { ...init, signal: AbortSignal.timeout(2500) });
@@ -31,6 +38,18 @@ export const connectorService = {
     const r = await call("/status");
     if (!r?.ok) return null;
     try { return (await r.json()) as ConnectorStatus; } catch { return null; }
+  },
+  /** Null when the connector is not reachable. */
+  async live(): Promise<LiveState | null> {
+    const r = await call("/live");
+    if (!r?.ok) return null;
+    try { return (await r.json()) as LiveState; } catch { return null; }
+  },
+  /** The latest picture of the test browser, or null when there is none. */
+  async liveFrame(): Promise<Blob | null> {
+    const r = await call("/live/frame");
+    if (!r || r.status !== 200) return null;
+    try { return await r.blob(); } catch { return null; }
   },
   /** Tells the connector to look for work now. Returns whether it was reached. */
   async wake(): Promise<boolean> {

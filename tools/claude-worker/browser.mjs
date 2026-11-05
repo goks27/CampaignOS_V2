@@ -4,6 +4,8 @@
  */
 import { chromium } from "playwright-core";
 import { JobFailed } from "./core.mjs";
+import { live } from "./live.mjs";
+import { DEVICE_BY_ID } from "./devices.mjs";
 
 export const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
@@ -22,9 +24,61 @@ const AUDIT = `() => {
     title: (document.title || "").trim(), lang: document.documentElement.lang || "", viewportMeta: !!document.querySelector('meta[name="viewport"]'),
     overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, imgs, links,
     emptyLinks: [...document.querySelectorAll("a")].filter((a) => ["#", "", "javascript:void(0)", "javascript:;"].includes((a.getAttribute("href") ?? "").trim())).length,
+    wide: [...document.querySelectorAll("body *")].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.right > document.documentElement.clientWidth + 2 && cs.position !== "fixed" && cs.display !== "none" && cs.visibility !== "hidden"; })
+      .slice(0, 5).map((e) => ({ tag: e.tagName.toLowerCase(), text: (e.innerText || e.getAttribute("alt") || "").trim().slice(0, 30), width: Math.round(e.getBoundingClientRect().width) })),
+    smallTargets: [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, [role=button]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.width < 32 || r.height < 32) && getComputedStyle(e).visibility !== "hidden"; }).length,
+    tinyText: [...document.querySelectorAll("p, li, span, a, td, label, h1, h2, h3, h4")].filter((e) => e.childElementCount === 0 && (e.innerText || "").trim().length > 3 && parseFloat(getComputedStyle(e).fontSize) < 11).length,
     unlabelledInputs: inputs.filter((i) => !(i.labels && i.labels.length) && !i.getAttribute("aria-label") && !i.getAttribute("aria-labelledby") && !i.getAttribute("placeholder")).length,
   };
 }`;
+
+/** Runs inside the page: is a loader or splash screen still covering it, and has the content stopped changing? Read-only. */
+const LOOK = `() => {
+  const t = (document.body ? document.body.innerText : "").trim();
+  const covers = [...document.querySelectorAll("[class*=load i],[id*=load i],[class*=splash i],[id*=splash i],[class*=preload i],[class*=spinner i],[class*=intro i]")].some((e) => {
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.1 && r.width >= innerWidth * 0.8 && r.height >= innerHeight * 0.8 && r.bottom > 0 && r.top < innerHeight;
+  });
+  const bare = /\b(loading|please wait)\b/i.test(t.slice(0, 400)) && t.length < 600;
+  return { len: t.length, loading: covers || bare, pending: [...document.images].filter((i) => !i.complete && (i.currentSrc || i.src)).length };
+}`;
+
+/**
+ * Waits until the page has really finished: network quiet, no loader or splash screen covering it, no images still arriving
+ * and the text no longer changing. Many sites run a timed preloader that network-idle cannot see, so a screenshot taken
+ * on idle alone shows the loader. Returns whether it settled; after maxMs it gives up and says so.
+ */
+export async function settle(page, { maxMs = 25_000, stableFor = 2 } = {}) {
+  const start = Date.now();
+  let last = -1, stable = 0, state = { loading: false };
+  while (Date.now() - start < maxMs) {
+    state = await page.evaluate(`(${LOOK})()`).catch(() => null);
+    if (!state) return { settled: true, waitedMs: Date.now() - start };
+    if (!state.loading && !state.pending && state.len === last) { if (++stable >= stableFor) return { settled: true, waitedMs: Date.now() - start }; } else stable = 0;
+    last = state.len;
+    await page.waitForTimeout(1000);
+  }
+  return { settled: !state?.loading, stillLoading: Boolean(state?.loading), waitedMs: Date.now() - start };
+}
+
+/**
+ * Sends a small picture of the page to the live view about once a second while fn runs. Best effort: a missed
+ * frame is fine, and it never slows or fails the job.
+ */
+export function startFrames(page, { everyMs = 900 } = {}) {
+  let busy = false, stopped = false;
+  const grab = async () => {
+    if (busy || stopped || page.isClosed()) return;
+    busy = true;
+    try { live.setFrame(await page.screenshot({ type: "jpeg", quality: 50, timeout: 3000 })); } catch { /* the page is navigating or closing */ } finally { busy = false; }
+  };
+  const timer = setInterval(grab, everyMs);
+  return () => { stopped = true; clearInterval(timer); };
+}
+export async function withFrames(page, fn, opts) {
+  const stop = startFrames(page, opts);
+  try { return await fn(); } finally { stop(); }
+}
 
 export class Browser {
   constructor(guard, httpCredentials = null) {
@@ -54,7 +108,7 @@ export class Browser {
   }
 
   async newContext(device) {
-    const opts = { ...(VIEWPORTS[device] ?? VIEWPORTS.desktop), serviceWorkers: "block", ignoreHTTPSErrors: false, acceptDownloads: false };
+    const opts = { ...(DEVICE_BY_ID.get(device)?.opts ?? VIEWPORTS[device] ?? VIEWPORTS.desktop), serviceWorkers: "block", ignoreHTTPSErrors: false, acceptDownloads: false };
     if (this.httpCredentials) opts.httpCredentials = this.httpCredentials;
     const ctx = await this.browser.newContext(opts);
     await ctx.route("**/*", async (route) => {
@@ -100,36 +154,53 @@ export class Browser {
     return { status: 0, error: "too many redirects", final: current };
   }
 
-  async capture(url, device, { inspect = false } = {}) {
+  /** Pass `ctx` to reuse a context (for example one that is already signed in); it is then left open for the caller to close. */
+  async capture(url, device, { inspect = false, ctx: shared = null } = {}) {
     const { ok, why } = await this.guard.check(url);
     if (!ok) throw new JobFailed(`Refusing to open ${url}: ${why}. Add the domain to the environment's allowed domains.`, { retryable: false });
-    const ctx = await this.newContext(device);
+    const ctx = shared ?? await this.newContext(device);
     const consoleLog = [], failed = [], mixed = [];
+    const blockedFrom = this.guard.blocked.length;
+    let page;
     try {
-      const page = await ctx.newPage();
+      page = await ctx.newPage();
       Browser.attachListeners(page, consoleLog, failed);
       if (inspect) page.on("request", (r) => { if (/^https:/.test(page.url()) && /^http:/.test(r.url())) mixed.push(r.url().slice(0, 200)); });
-      let status = 0, contentType = "";
-      try {
-        const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
-        status = resp?.status() ?? 0;
-        contentType = resp?.headers()["content-type"] ?? "";
-      } catch (e) {
-        throw new JobFailed(`Could not open ${url}: ${String(e.message).split("\n")[0]}`, { retryable: true });
-      }
-      try { await page.waitForLoadState("networkidle", { timeout: 15_000 }); } catch { await page.waitForTimeout(2000); }
+      let status = 0, contentType = "", loaded;
+      // Everything up to the screenshot is shown live: the page as it loads, the loader, then the real page.
+      await withFrames(page, async () => {
+        const label = DEVICE_BY_ID.get(device)?.label ?? device;
+        live.where({ url, device: label });
+        live.step(`Opening ${url.replace(/^https?:\/\//, "").slice(0, 80)} on ${label}`);
+        try {
+          const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+          status = resp?.status() ?? 0;
+          contentType = resp?.headers()["content-type"] ?? "";
+        } catch (e) {
+          throw new JobFailed(`Could not open ${url}: ${String(e.message).split("\n")[0]}`, { retryable: true });
+        }
+        live.step("Waiting for the page to load");
+        try { await page.waitForLoadState("networkidle", { timeout: 15_000 }); } catch { await page.waitForTimeout(2000); }
+        live.step("Waiting for any loading screen to finish");
+        loaded = await settle(page);
+        live.step(loaded.stillLoading ? "The loading screen did not finish" : loaded.waitedMs > 2500 ? `Page ready after ${Math.round(loaded.waitedMs / 1000)}s of loading` : "Page ready");
+      });
+      live.step("Taking the screenshot and checking the page");
       const height = Math.min(MAX_FULLPAGE_HEIGHT, Number(await page.evaluate("document.documentElement.scrollHeight")) || 900);
       const vp = page.viewportSize() ?? { width: 1440, height: 900 };
-      const png = await page.screenshot({ fullPage: true, clip: { x: 0, y: 0, width: vp.width, height }, animations: "disabled" });
+      const png = await page.screenshot({ fullPage: true, clip: { x: 0, y: 0, width: vp.width, height }, animations: "disabled", scale: "css" });
       const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 20_000);
       const html = await page.content();
-      const cap = { url: page.url(), viewport: device, png, width: vp.width, height, text, console: consoleLog, failed, captcha: CAPTCHA_RE.test(html) };
+      // Requests the connector's own network guard refused (hosts outside the allow-list), so they are never mistaken for the site's own bugs.
+      const blocked = this.guard.blocked.slice(blockedFrom).map((x) => String(x).split(" (")[0]);
+      const cap = { blocked, url: page.url(), viewport: device, png, width: vp.width, height, text, console: consoleLog, failed, captcha: CAPTCHA_RE.test(html), stillLoading: Boolean(loaded.stillLoading), settleMs: loaded.waitedMs };
       if (!inspect) return cap;
       const facts = await page.evaluate(`(${AUDIT})()`);
       const loadMs = Number(await page.evaluate("Math.round(performance.getEntriesByType('navigation')[0]?.loadEventEnd || 0)")) || 0;
       return { ...cap, status, contentType, facts, loadMs, mixed };
     } finally {
-      await ctx.close();
+      if (shared) await page?.close().catch(() => undefined);
+      else await ctx.close();
     }
   }
 }

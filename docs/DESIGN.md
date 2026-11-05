@@ -67,6 +67,20 @@ Journ is a workspace, not a set of pages. The campaign is the interface: it open
 ### Canvas
 The canvas fills the campaign workspace: a **journey dropdown** (top left; "All journeys (pipeline)" is the last item and "Manage journeys" opens the journeys drawer), a **zoom toolbar** (top right: fit, zoom out, percentage, zoom in, full screen), the **inspector** docked on the right (400px; below 1024px it opens as a drawer), and the **dock** underneath (AI Review, Issues, Test Runs, Activity for the open journey; collapsible, remembered).
 
+#### Device report
+On the Development section, under the builds: one card for the latest finished site check. A sentence (when, pages, how many devices have issues, link to the findings), a sign-in note when the login failed or asked for details that are not stored (what to add), a table of devices (pages opened, result, sign-in) where a click opens the issues seen on that device, and a plain note that the devices are emulated.
+
+#### Live view
+While the connector runs a job, a card appears bottom right on every page: the live picture of the test browser (a phone-width picture for mobile passes), a headline for the current step, the last few steps, and where it is (device, page n of N, path). It can be made larger, or hidden to a pill, and remembers which. It says plainly that it is live on this PC only and cannot control the browser.
+
+#### The journey graph
+A journey canvas is a graph the team edits: **screens** (phone frames from the designs), **logic steps** and **connections**. Everything on it is documentation until a scenario covers it; the AI never edits the graph.
+- **Steps you can add** ("+ Add", top left, placed in free space inside the view): form submission, OTP validation, API request, eligibility check, decision, reward allocation, voucher distribution, KYC verification, error or fallback, End, note. Start comes with the journey (one per journey, cannot be deleted). Screens come from the designs; a design that has no node yet waits in a **New screens** tray (bottom left) with Add and Add all.
+- **Logic step card:** 210px, a 4px bar on the left in the kind’s tone, kind label in small caps, name, the first thing its settings say, and a requirement count. A note is a dashed card. Screen nodes also show the design version, how the built page compares and the scenarios passed.
+- **Connections:** drag from a dot on any side of a step to any side of another. Dots appear on hover and on the selected step. Arrows have heads, may carry a label, run dashed into error and success states, and turn accent when selected. Rules (also enforced by the database): same journey, nothing into Start, nothing out of End, notes are not part of the flow, one connection per ordered pair (a loop back is allowed).
+- **Keyboard:** Delete or Backspace deletes the selection after a confirmation, Ctrl/Cmd+D copies a step (not Start or a screen), F fits, + and - zoom, M toggles the minimap (remembered), Esc clears the selection. Shift-drag selects several.
+- **The inspector follows the selected object:** a screen (Overview, Findings, Requirements, Tests, Tasks), a logic step (name, its settings, linked requirements, connections), a connection (label), a finding or a requirement (with a link back to the step). Viewers see the same graph with no dots, no Add and a "View only" note. Below 1024px the inspector is a drawer and the canvas tools sit bottom right.
+
 ## Components
 - Tables: header 12px muted, rows with 1px dividers, hover row background, journeys as indented sub-rows.
 - Stage: a small progress ring + stage name. Seven stages, always in PRD order.

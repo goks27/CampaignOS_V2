@@ -14,12 +14,14 @@ import { requirementsService } from "@/services/requirements";
 import type { CampaignWithRelations } from "@/services/campaigns";
 import { RunReviewButton } from "@/features/shared/RunReview";
 import { AssetImage } from "@/features/shared/AssetImage";
+import { deviceLabel } from "@/lib/devices";
+import { DeviceReport } from "./DeviceReport";
 
 /** "build" is the staging environments and builds; "testing" is the scenarios and their runs. */
 export function DevelopmentTab({ campaign: c, part = "all" }: { campaign: CampaignWithRelations; part?: "all" | "build" | "testing" }) {
   return (
     <>
-      {part !== "testing" && <><Environments campaign={c} /><Submissions campaign={c} /></>}
+      {part !== "testing" && <><Environments campaign={c} /><Submissions campaign={c} /><DeviceReport campaign={c} /></>}
       {part !== "build" && <><Scenarios campaign={c} /><Runs campaign={c} /></>}
     </>
   );
@@ -108,7 +110,7 @@ function CredentialsDialog({ campaign: c, env, onClose }: { campaign: CampaignWi
         <form className="grid gap-3" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
           <Field label="Username or test mobile number"><Input autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} /></Field>
           <Field label="Password or test OTP"><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-          <Field label="Extra (optional)" hint="e.g. HTTP basic-auth user:pass for the staging server"><Input autoComplete="off" value={extra} onChange={(e) => setExtra(e.target.value)} /></Field>
+          <Field label="Extra details (optional)" hint="One per line. user:pass is HTTP basic auth for the staging server. Label = value is anything else the login asks for, for example: OTP = 123456, or Outlet code = AB12."><Textarea rows={3} autoComplete="off" value={extra} placeholder={"OTP = 123456\nOutlet code = AB12"} onChange={(e) => setExtra(e.target.value)} /></Field>
         </form>
       </DialogContent>
     </Dialog>
@@ -229,7 +231,7 @@ function SubmissionDetail({ campaign: c, sub, onClose }: { campaign: CampaignWit
                 <AssetImage bucket="captures" path={cap.storage_path} alt={cap.url} className="aspect-[3/4] rounded-t-item" />
                 <div className="p-2 text-xs">
                   <p className="truncate font-mono">{cap.url}</p>
-                  <p className="text-muted">{cap.viewport}{cap.diff_ratio != null ? ` · ${(Number(cap.diff_ratio) * 100).toFixed(1)}% differs from design` : ""}</p>
+                  <p className="text-muted">{deviceLabel(cap.viewport)}{cap.diff_ratio != null ? ` · ${(Number(cap.diff_ratio) * 100).toFixed(1)}% differs from design` : ""}</p>
                   {(cap.console_messages as unknown[]).length > 0 && <p className="text-st-amber">{(cap.console_messages as unknown[]).length} console errors</p>}
                   {(cap.failed_requests as unknown[]).length > 0 && <p className="text-st-amber">{(cap.failed_requests as unknown[]).length} failed requests</p>}
                 </div>

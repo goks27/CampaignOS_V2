@@ -8,6 +8,7 @@ import { CommandMenu } from "./CommandMenu";
 import { Rail } from "./Rail";
 import { TopBar } from "./TopBar";
 import { AssistantPanel } from "@/features/assistant/AssistantPanel";
+import { LiveView } from "@/features/live/LiveView";
 
 const COLLAPSE_KEY = "campaignos-rail-collapsed";
 const readCollapsed = () => { try { return localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { return false; } };
@@ -63,6 +64,7 @@ export function AppShell() {
       </div>
       <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+      <LiveView />
     </div>
   );
 }

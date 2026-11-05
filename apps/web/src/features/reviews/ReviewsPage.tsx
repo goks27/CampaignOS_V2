@@ -15,6 +15,7 @@ import { useAction } from "@/hooks/useAction";
 import { defaultFeedback, findingsService, type Feedback, type Finding } from "@/services/findings";
 import { requirementsService } from "@/services/requirements";
 import { JobsTable } from "@/features/shared/JobsTable";
+import { deviceLabel } from "@/lib/devices";
 import { ScreenshotViewer, type Overlay, type Region } from "./ScreenshotViewer";
 
 type Filters = { q: string; campaign: string; severity: Severity | ""; type: ReviewType | ""; owner: string; status: FindingStatus | "" | "open"; since: string; job: string };
@@ -201,7 +202,7 @@ function FindingScreen({ finding: f, all, onSelect }: { finding: Finding; all: F
     .flatMap((x) => x.finding_evidence.filter((e) => e.kind === "region" && e.region).map((e) => ({ id: x.id, region: e.region as Region, active: x.id === f.id, label: x.title })));
   return (
     <ScreenshotViewer bucket={bucket} path={path} overlays={overlays} onSelectOverlay={onSelect}
-      title={isDev ? `${f.dev_captures?.url} · ${f.dev_captures?.viewport}` : f.design_assets?.screen_name ?? "No screen"}
+      title={isDev ? `${f.dev_captures?.url} · ${deviceLabel(f.dev_captures?.viewport)}` : f.design_assets?.screen_name ?? "No screen"}
       position={pos >= 0 ? `Screen ${pos + 1} of ${screens.length}` : undefined}
       onPrev={pos > 0 ? () => onSelect(screens[pos - 1]![1].id) : undefined}
       onNext={pos >= 0 && pos < screens.length - 1 ? () => onSelect(screens[pos + 1]![1].id) : undefined} />

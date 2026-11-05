@@ -127,7 +127,7 @@ test("site_check: opens the pages, follows safe links only, reports what is brok
     assert.ok(titles.some((t) => /Broken image: missing\.png/.test(t)), titles.join(" | "));
     assert.ok(titles.some((t) => /Console error: about exploded/.test(t) || /about exploded/.test(t)));
     assert.ok(titles.some((t) => /Placeholder text on \/about/.test(t)));
-    assert.ok(titles.some((t) => /scrolls sideways on mobile: \/about/.test(t)));
+    assert.ok(titles.some((t) => /scrolls sideways on small screens: \/about/.test(t)), titles.join(" | "));
     assert.ok(titles.some((t) => /form field without a label/.test(t)));
     assert.ok(titles.some((t) => /Broken link: .*\/gone/.test(t)), "a link not opened as a page is checked and reported");
     const typo = result.findings.find((f) => f.title === "Typo in the heading");
@@ -144,8 +144,22 @@ test("site_check: opens the pages, follows safe links only, reports what is brok
     assert.match(prompts[0], /UNTRUSTED DATA/);
     assert.match(prompts[0], /do NOT repeat/);
 
+    // every device opened every page, and the report says which device has which problem
+    const dev = Object.fromEntries(result.notes.devices.map((d) => [d.id, d]));
+    assert.deepEqual(Object.keys(dev), ["desktop", "laptop", "iphone-15", "iphone-se", "pixel-7", "galaxy-s9", "ipad"]);
+    assert.ok(result.notes.devices.every((d) => d.pages_tested === 2 && d.pages_failed === 0 && d.engine === "Chromium (emulated)"), JSON.stringify(result.notes.devices.map((d) => [d.id, d.pages_tested])));
+    assert.ok(dev["iphone-15"].top_issues.some((t) => /scrolls sideways/.test(t)), "the wide block is a problem on a phone");
+    assert.ok(!dev.desktop.top_issues.some((t) => /scrolls sideways/.test(t)), "and not on the desktop");
+    const side = result.findings.find((f) => /scrolls sideways/.test(f.title));
+    assert.match(side.title, /\(iPhone 15/, "a problem seen on only some devices says which");
+    assert.match(side.description, /emulated devices/);
+    assert.doesNotMatch(result.findings.find((f) => /Broken image: missing/.test(f.title)).title, /\(/, "a problem seen on every device is not narrowed to one");
+    assert.match(prompts[0], /iPhone 15.*Pixel 7/s);
+    assert.ok(prompts[0].includes("site-1-iphone-15-part1.png"));
+
     // shape
     assert.equal(result.notes.pages_checked, 2);
+    assert.equal(result.notes.devices_tested, 7);
     assert.ok(result.notes.links_checked >= 1);
     assert.ok(result.captures.length >= 3 && result.captures.every((c) => c.storage_path.startsWith("camp/job-1/")));
     assert.match(meta.prompt_version, /sitecheck/);
@@ -163,4 +177,90 @@ test("site_check allows only the submitted site's own host, never private addres
   const brief = { id: "j", review_type: "site_check", dir: os.tmpdir(), timeout_seconds: 600, files: [], input: { staging_url: "http://192.168.1.20/", page_paths: ["/"], allowed_domains: [], capture_prefix: "c/", limits: {}, design_assets: [], requirements: [], test_cases: [] } };
   // No injected guard: the real NetGuard is used and an IP literal is refused outright.
   await assert.rejects(runStaging(brief, { db: fakeDb(), model: "sonnet", timeoutMs: 1000, run: claudeAnswer([]) }), /IP literals|Refusing/);
+});
+
+// ---------------------------------------------------------------- signing in to go further
+async function memberSite() {
+  const posts = [], hits = [];
+  const srv = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://x");
+    const authed = /s=1/.test(req.headers.cookie ?? "");
+    hits.push(`${req.method} ${url.pathname}`);
+    const send = (code, body, h = {}) => { res.writeHead(code, { "Content-Type": "text/html", ...h }); res.end(body); };
+    if (req.method === "POST") {
+      let b = ""; req.on("data", (d) => { b += d; });
+      req.on("end", () => { const p = new URLSearchParams(b); posts.push(url.pathname);
+        return p.get("user") === "tester" && p.get("pw") === "secret" ? send(302, "", { Location: "/", "Set-Cookie": "s=1; Path=/" }) : send(200, page("<p role=alert>Invalid username or password</p>")); });
+      return;
+    }
+    if (url.pathname === "/") return send(200, page(`<h1>Home</h1>${authed ? '<a href="/members">Members</a>' : '<a href="/login">Log in</a>'}<a href="/public">Public</a>`));
+    if (url.pathname === "/login") return send(200, page('<form method="post" action="/login"><label>Mobile number <input name="user" type="text"></label><label>Password <input name="pw" type="password"></label><button type="submit">Log in</button></form>'));
+    if (url.pathname === "/members") return authed ? send(200, page('<h1>Members</h1><img src="/secret-banner.png" alt="banner">')) : send(302, "", { Location: "/login" });
+    if (url.pathname === "/public") return send(200, page("<h1>Public</h1>"));
+    send(404, "nope");
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  return { srv, posts, hits, base: `http://localhost:${srv.address().port}/` };
+}
+const memberBrief = (base, creds) => ({ id: "job-m", review_type: "site_check", dir: fs.mkdtempSync(path.join(os.tmpdir(), "cw-site-")), timeout_seconds: 900, files: [], input: {
+  staging_url: base, page_paths: ["/"], allowed_domains: [], environment: creds ? { id: "e", base_url: base, has_credentials: true } : null, design_assets: [], requirements: [], test_cases: [],
+  capture_prefix: "camp/job-m/", limits: { site_check_max_pages: 5, site_check_devices: ["desktop", "iphone-15"] } } });
+const memberDb = (creds) => ({ ...fakeDb(), rpc: async (fn) => (fn === "worker_get_credentials" ? creds : null) });
+const guardLocal = () => new NetGuard(["localhost"], { unsafeAllowPrivateForTests: true });
+
+test("site_check with stored credentials signs in on every device and checks the pages behind the login", async () => {
+  const { srv, posts, base } = await memberSite();
+  try {
+    const { result } = await runStaging(memberBrief(base, true), { db: memberDb({ username: "tester", password: "secret" }), model: "sonnet", timeoutMs: 5000, run: claudeAnswer([]), guard: guardLocal() });
+    const titles = result.findings.map((f) => f.title);
+    assert.ok(titles.some((t) => /Broken image: secret-banner\.png/.test(t)), "the members-only page was reached and checked: " + titles.join(" | "));
+    assert.equal(result.notes.login.status, "ok");
+    assert.deepEqual(result.notes.devices.map((d) => [d.id, d.login, d.pages_tested]), [["desktop", "ok", 3], ["iphone-15", "ok", 3]]);
+    assert.deepEqual([...new Set(posts)], ["/login"], "the only form ever submitted is the login");
+  } finally { srv.close(); }
+});
+
+test("site_check without credentials stays on the public pages and does not type anything", async () => {
+  const { srv, posts, base } = await memberSite();
+  try {
+    const { result } = await runStaging(memberBrief(base, false), { db: fakeDb(), model: "sonnet", timeoutMs: 5000, run: claudeAnswer([]), guard: guardLocal() });
+    assert.ok(!result.findings.some((f) => /secret-banner/.test(f.title)));
+    assert.equal(result.notes.login.status, "none");
+    assert.equal(posts.length, 0, "nothing was typed or submitted");
+  } finally { srv.close(); }
+});
+
+test("site_check with wrong credentials reports it plainly and still checks the public pages", async () => {
+  const { srv, base } = await memberSite();
+  try {
+    const { result } = await runStaging(memberBrief(base, true), { db: memberDb({ username: "tester", password: "wrong" }), model: "sonnet", timeoutMs: 5000, run: claudeAnswer([]), guard: guardLocal() });
+    const f = result.findings.find((x) => /Sign-in did not work/.test(x.title));
+    assert.ok(f && f.severity === "high", JSON.stringify(result.findings.map((x) => x.title)));
+    assert.equal(result.notes.login.status, "failed");
+    assert.ok(result.notes.pages_checked >= 2);
+  } finally { srv.close(); }
+});
+
+// ---------------------------------------------------------------- hosts outside the allow-list
+test("images the network guard refused are reported as not loaded, never as broken images", async () => {
+  const srv = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://x");
+    if (url.pathname === "/cdn.png") { res.writeHead(200, { "Content-Type": "image/png" }); return res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64")); }
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(page(`<h1>Home</h1><img src="http://127.0.0.1:${srv.address().port}/cdn.png" alt="from another host"><img src="/missing.png" alt="really broken">`));
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  try {
+    const base = `http://localhost:${srv.address().port}/`;
+    const brief = memberBrief(base, false);
+    brief.input.limits.site_check_devices = ["desktop"];
+    const { result } = await runStaging(brief, { db: fakeDb(), model: "sonnet", timeoutMs: 5000, run: claudeAnswer([]), guard: new NetGuard(["localhost"], { unsafeAllowPrivateForTests: true }) });
+    const titles = result.findings.map((f) => f.title);
+    assert.ok(!titles.some((t) => /Broken image: cdn\.png/.test(t)), "an image that was refused is not a broken image: " + titles.join(" | "));
+    assert.ok(titles.some((t) => /Broken image: missing\.png/.test(t)), "a genuinely missing image is still reported");
+    const note = result.findings.find((f) => /to other hosts were not loaded/.test(f.title));
+    assert.ok(note && note.severity === "informational");
+    assert.match(note.observed, /127\.0\.0\.1/);
+    assert.match(note.suggested_correction, /allowed domains/);
+  } finally { srv.close(); }
 });

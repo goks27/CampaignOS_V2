@@ -3,7 +3,8 @@
  * CampaignOS Claude connector.
  *
  * A small local program that lets the dashboard use Claude Code on this PC. Start it with `npm run claude`.
- * - Binds to 127.0.0.1 only. It exposes just two things: GET /status and POST /wake. /wake carries no data.
+ * - Binds to 127.0.0.1 only. It exposes GET /status, POST /wake (no data), the read-only live view (GET /live, GET /live/frame),
+ *   and the assistant and playground endpoints.
  * - Only dashboard origins may call it (localhost dev server, plus CLAUDE_CONNECTOR_ORIGINS), and the Host header must be localhost.
  * - It does not trust the browser for anything. It signs in as the `worker` user, claims jobs from Supabase
  *   (so database permissions, history and the duplicate guard all still apply), runs Claude Code on them,
@@ -18,20 +19,23 @@ import { Supabase, beat, claimJob, completeJob, config, failJob, JobFailed, Resu
 import { analyse, SUPPORTED } from "./runner.mjs";
 import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
 import { MAX_PLAYGROUND_BYTES, playgroundCheck } from "./playground.mjs";
+import { live as sharedLive } from "./live.mjs";
 
 const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 
-export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, log = console.log }) {
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, log = console.log }) {
   const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
   const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
   let draining = false, again = false, timer = null, hb = null, assistantBusy = false, playgroundBusy = false;
 
-  const note = (s) => { if (state.job) state.job.step = s; };
+  const note = (s) => { if (state.job) state.job.step = s; live.step(s); };
 
   async function runOne(brief) {
     state.busy = true;
     state.job = { id: brief.id, type: brief.review_type, startedAt: new Date().toISOString(), step: "Starting" };
+    live.start({ jobId: brief.id, type: brief.review_type });
+    live.step("Starting");
     log(`[job ${brief.id.slice(0, 8)}] ${brief.review_type} started`);
     const ac = new AbortController();
     hb = setInterval(async () => {
@@ -61,6 +65,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       log(`[job ${brief.id.slice(0, 8)}] ${cancelled ? "cancelled" : "failed"}: ${message}`);
     } finally {
       clearInterval(hb);
+      live.end(); // the picture and the steps are forgotten with the job
       state.busy = false;
       state.job = null;
       try { await beat(db, cfg, { busy: false }); } catch { /* next poll retries */ }
@@ -110,6 +115,14 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
     const url = new URL(req.url || "/", "http://localhost");
     if (req.method === "GET" && url.pathname === "/status") {
       return json(200, { connector: "claude-code", claude, model: cfg.model, supports: SUPPORTED, assistant: true, playground: true, busy: state.busy, job: state.job, last: state.last, startedAt: state.startedAt });
+    }
+    // Live view of the running job: read-only, in memory, cleared when the job ends.
+    if (req.method === "GET" && url.pathname === "/live") return json(200, live.state());
+    if (req.method === "GET" && url.pathname === "/live/frame") {
+      const f = live.frame();
+      if (!f) { res.writeHead(204, { ...cors, "Cache-Control": "no-store" }); return res.end(); }
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": f.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
+      return res.end(f);
     }
     if (req.method === "POST" && url.pathname === "/assistant") {
       // One assistant turn at a time. Review jobs run separately, so a long review never blocks a quick question.

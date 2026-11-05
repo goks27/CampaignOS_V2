@@ -14,6 +14,8 @@ import { RunReviewButton } from "@/features/shared/RunReview";
 import { AssetImage, useSignedUrl } from "@/features/shared/AssetImage";
 import { FindingList } from "./FindingList";
 import { UNASSIGNED, type JourneyModel, type ScreenModel } from "./journeyModel";
+import type { Requirement } from "@/services/requirements";
+import type { Focus } from "./ObjectPanels";
 
 type Tab = "overview" | "findings" | "requirements" | "tests" | "tasks";
 const TABS: { value: Tab; label: string }[] = [
@@ -70,9 +72,12 @@ function AddTaskDialog({ campaignId, journeyId, screen, onClose }: { campaignId:
 }
 
 /** Right-hand panel. With nothing selected it summarises the journey; with a screen selected it shows everything about that screen. */
-export function Inspector({ campaign: c, model, journeyName, screen, onClose, onOpenViewer, onSubmitDesigns, onAddBuild }: {
+export function Inspector({ campaign: c, model, journeyName, screen, onClose, onOpenViewer, onSubmitDesigns, onAddBuild, onFocus, linked = [], pickable = [], canLink = false, onLink, onUnlink }: {
   campaign: CampaignWithRelations; model: JourneyModel; journeyName: string; screen: ScreenModel | null; onClose: () => void;
   onOpenViewer: (index: number) => void; onSubmitDesigns: () => void; onAddBuild: () => void;
+  onFocus?: (f: Focus) => void;
+  /** Requirements linked to this screen's step, the ones that could still be linked, and who may link them. */
+  linked?: Requirement[]; pickable?: Requirement[]; canLink?: boolean; onLink?: (requirementId: string) => void; onUnlink?: (requirementId: string) => void;
 }) {
   const { canEdit } = useAuth();
   const [tab, setTab] = React.useState<Tab>("overview");
@@ -161,9 +166,18 @@ export function Inspector({ campaign: c, model, journeyName, screen, onClose, on
             {canEdit && <Button size="sm" onClick={() => setAdding(true)}><Plus />Add a task</Button>}
           </div>
         )}
-        {tab === "findings" && <FindingList campaignId={c.id} findings={screen.findings.filter((f) => f.status !== "dismissed")} emptyText="No findings on this screen. Run “Check designs vs SOW” to check it against the accepted requirements." />}
+        {tab === "findings" && <FindingList campaignId={c.id} onSelect={onFocus ? (id) => onFocus({ t: "finding", id }) : undefined} findings={screen.findings.filter((f) => f.status !== "dismissed")} emptyText="No findings on this screen. Run “Check designs vs SOW” to check it against the accepted requirements." />}
         {tab === "requirements" && (
           <div className="space-y-3 p-3">
+            <div>
+              <p className="mb-1 text-xs font-medium text-text-2">Linked to this screen</p>
+              {linked.length ? <ul className="space-y-1">{linked.map((r) => (
+                <li key={r.id} className="flex items-start gap-2 text-sm">
+                  <button className="min-w-0 flex-1 text-left hover:underline" onClick={() => onFocus?.({ t: "req", id: r.id })}><span className="font-mono text-xs text-muted">{r.ref}</span> {r.title}</button>
+                  {canLink && <button aria-label={`Unlink ${r.ref}`} className="rounded-ctl px-1.5 text-xs text-muted hover:bg-hover hover:text-text" onClick={() => onUnlink?.(r.id)}>Unlink</button>}
+                </li>))}</ul> : <p className="text-sm text-text-2">No requirement is linked to this screen yet.</p>}
+              {canLink && pickable.length > 0 && <div className="mt-2"><Select value="" onChange={(e) => e.target.value && onLink?.(e.target.value)} placeholder="Link a requirement…" options={pickable.map((r) => ({ value: r.id, label: `${r.ref} · ${r.title}` }))} /></div>}
+            </div>
             <div>
               <p className="mb-1 text-xs font-medium text-text-2">Cited by findings on this screen</p>
               {cited.size ? <ul className="space-y-1">{[...cited.values()].map((r) => <li key={r.ref} className="text-sm"><span className="font-mono text-xs text-muted">{r.ref}</span> {r.title} <span className="text-xs text-muted">· {r.n} finding{r.n === 1 ? "" : "s"}</span></li>)}</ul> : <p className="text-sm text-text-2">No finding on this screen cites a requirement yet.</p>}
@@ -172,7 +186,7 @@ export function Inspector({ campaign: c, model, journeyName, screen, onClose, on
               <p className="mb-1 text-xs font-medium text-text-2">Accepted requirements of this journey</p>
               {model.accepted.length ? <ul className="space-y-1">{model.accepted.map((r) => {
                 const chk = model.checkOf.get(r.id);
-                return <li key={r.id} className="flex items-start gap-2 text-sm"><span className="font-mono text-xs text-muted">{r.ref}</span><span className="min-w-0 flex-1">{r.title}</span>{chk && <StatusDot tone={VERIFICATION_TONE[chk.result] as Tone} label={VERIFICATION_LABEL[chk.result]} className="text-xs" />}</li>;
+                return <li key={r.id} className="flex items-start gap-2 text-sm"><span className="font-mono text-xs text-muted">{r.ref}</span><button className="min-w-0 flex-1 text-left hover:underline" onClick={() => onFocus?.({ t: "req", id: r.id })}>{r.title}</button>{chk && <StatusDot tone={VERIFICATION_TONE[chk.result] as Tone} label={VERIFICATION_LABEL[chk.result]} className="text-xs" />}</li>;
               })}</ul> : <p className="text-sm text-text-2">No accepted requirements yet. A manager accepts Claude’s drafts on the Requirements tab.</p>}
               <p className="mt-2 text-xs text-muted">A requirement is not tied to a screen unless a finding cites it. A screenshot never proves a backend rule.</p>
             </div>

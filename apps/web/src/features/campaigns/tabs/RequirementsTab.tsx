@@ -18,11 +18,13 @@ import { storageService, validateFile } from "@/services/storage";
 import type { CampaignWithRelations } from "@/services/campaigns";
 import { useToast } from "@/components/toast";
 import { RunReviewButton } from "@/features/shared/RunReview";
+import { BrandAssets } from "./BrandAssets";
 
 export function RequirementsTab({ campaign: c }: { campaign: CampaignWithRelations }) {
   return (
     <>
       <SowPanel campaign={c} />
+      <BrandAssets campaign={c} />
       <RequirementsWorkspace campaign={c} />
     </>
   );
@@ -54,7 +56,7 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
   const [target, setTarget] = React.useState<SowDocument | null>(null);
   const upload = useAction((f: File) => sowService.upload(c.id, f, target?.id), {
     invalidate: [key], error: "Upload failed",
-    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}${r.autoQueued ? " and queued for analysis" : ". Run the analysis when ready"}.`,
+    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}${r.autoQueued ? " and queued for analysis" : ". Run the analysis when ready"}. Add the logo and other brand files under Brand assets below.`,
   });
   const pick = (doc: SowDocument | null) => { setTarget(doc); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
