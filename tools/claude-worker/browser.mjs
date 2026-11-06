@@ -81,7 +81,9 @@ export async function withFrames(page, fn, opts) {
 }
 
 export class Browser {
-  constructor(guard, httpCredentials = null) {
+  /** `headed` opens a visible window on this PC (the installed Google Chrome when there is one) instead of a hidden browser. */
+  constructor(guard, httpCredentials = null, { headed = false } = {}) {
+    this.headed = headed;
     this.guard = guard;
     this.httpCredentials = httpCredentials;
     this.browser = null;
@@ -92,7 +94,10 @@ export class Browser {
     const rules = await this.guard.resolverRules();
     if (rules) args.push(`--host-resolver-rules=${rules}`);
     try {
-      this.browser = await chromium.launch({ headless: true, args });
+      if (this.headed) {
+        try { this.browser = await chromium.launch({ headless: false, channel: "chrome", args }); } // the real Chrome app, when installed
+        catch { this.browser = await chromium.launch({ headless: false, args }); } // otherwise the Chromium that came with the tools
+      } else this.browser = await chromium.launch({ headless: true, args });
     } catch (e) {
       if (/Executable doesn't exist|browserType\.launch/i.test(String(e.message))) {
         throw new JobFailed("The browser for staging reviews is not installed on this PC. Run npm run claude:browser once, then run the review again.", { retryable: false });

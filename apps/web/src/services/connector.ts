@@ -119,7 +119,7 @@ export type BrowserPreset = { id: string; label: string; width: number; height: 
 export type BrowserStatus = "launching" | "loading" | "ready" | "error" | "disconnected" | "closed";
 export type BrowserState = {
   id: string; status: BrowserStatus; error: string | null; errorCode: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean;
-  captcha: boolean; paused: boolean; device: string; viewport: { width: number; height: number }; locked: boolean; lockedBy: string | null; startedAt: number;
+  captcha: boolean; paused: boolean; headed?: boolean; device: string; viewport: { width: number; height: number }; locked: boolean; lockedBy: string | null; startedAt: number;
   campaignId: string; campaignName: string; startUrl: string; frameSeq: number; closedReason: string | null;
   counts: { events: number; errors: number; console: number; network: number };
 };
@@ -130,7 +130,7 @@ export type BrowserEvent = {
 export type BrowserConsole = { id: number; at: string; type: string; text: string; location?: string };
 export type BrowserRequest = { id: number; at: string; method: string; url: string; type?: string; status: number | null; ms?: number; failed: boolean | string };
 export type BrowserLog = { state: BrowserState; events: BrowserEvent[]; console: BrowserConsole[]; network: BrowserRequest[] };
-export type BrowserOpenRequest = { url: string; device: string; allowed: string[]; campaign?: { id: string; name: string }; credentials?: { extra: string } };
+export type BrowserOpenRequest = { url: string; device: string; allowed: string[]; campaign?: { id: string; name: string }; credentials?: { extra: string }; window?: boolean };
 export type EmbedCheck = { embeddable: boolean | null; reason?: string };
 export type BrowserInput =
   | { type: "click"; fx: number; fy: number; button?: "left" | "right" | "middle"; count?: number }

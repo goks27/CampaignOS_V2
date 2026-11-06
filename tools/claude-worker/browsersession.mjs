@@ -65,7 +65,7 @@ export async function checkEmbeddable(url, { guard, embedder = "", fetchImpl = f
   return { embeddable: null, reason: "Not checked: too many redirects." };
 }
 
-export function createSessions({ openBrowser = (guard, httpCredentials) => new Browser(guard, httpCredentials).open(), makeGuard = (allowed) => new NetGuard(allowed), now = () => Date.now(), idleMs = 10 * 60_000, maxMs = 60 * 60_000, sweepMs = 15_000, log = () => {} } = {}) {
+export function createSessions({ openBrowser = (guard, httpCredentials, opts) => new Browser(guard, httpCredentials, opts).open(), makeGuard = (allowed) => new NetGuard(allowed), now = () => Date.now(), idleMs = 10 * 60_000, maxMs = 60 * 60_000, sweepMs = 15_000, log = () => {} } = {}) {
   let cur = null; // the one session
   const sweeper = setInterval(() => {
     if (!cur || cur.status === "closed") return;
@@ -84,7 +84,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials) => new B
 
   const publicState = (s) => ({
     id: s.id, status: s.status, error: s.error, errorCode: s.errorCode, url: s.nav.url, title: s.nav.title, loading: s.nav.loading, canGoBack: s.nav.canGoBack, canGoForward: s.nav.canGoForward,
-    captcha: s.captcha, paused: Boolean(s.paused), device: s.device, viewport: { width: s.viewport.width, height: s.viewport.height }, locked: s.locked, lockedBy: s.lockedBy, startedAt: s.startedAt,
+    captcha: s.captcha, paused: Boolean(s.paused), headed: Boolean(s.headed), device: s.device, viewport: { width: s.viewport.width, height: s.viewport.height }, locked: s.locked, lockedBy: s.lockedBy, startedAt: s.startedAt,
     campaignId: s.campaign.id, campaignName: s.campaign.name, startUrl: s.startUrl, frameSeq: s.frameSeq, closedReason: s.closedReason ?? null,
     counts: { events: s.events.length, errors: s.events.filter((e) => e.severity !== "info").length, console: s.consoleLog.length, network: s.network.length },
   });
@@ -228,7 +228,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials) => new B
   }
 
   // ---------------------------------------------------------------- public API
-  async function open({ url, device = "desktop", allowed = [], campaign = {}, credentials = null } = {}) {
+  async function open({ url, device = "desktop", allowed = [], campaign = {}, credentials = null, window: headed = false } = {}) {
     let u;
     try { u = new URL(String(url ?? "").trim()); } catch { throw new SessionError("Enter a web address starting with https://", "bad_url"); }
     if (!["http:", "https:"].includes(u.protocol)) throw new SessionError("Only http:// and https:// addresses can be opened.", "bad_url");
@@ -240,7 +240,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials) => new B
     if (cur && cur.status !== "closed") await close(cur.token, "Replaced by a new preview.");
     const s = {
       id: crypto.randomUUID(), token: crypto.randomBytes(24).toString("hex"), status: "launching", error: null, errorCode: null, startedAt: now(), lastActivity: now(), startUrl: u.toString(),
-      device: preset.id, preset, viewport: { width: preset.width, height: preset.height }, guard, campaign: { id: String(campaign?.id ?? "").slice(0, 60), name: String(campaign?.name ?? "").slice(0, 120) },
+      headed: headed === true, device: preset.id, preset, viewport: { width: preset.width, height: preset.height }, guard, campaign: { id: String(campaign?.id ?? "").slice(0, 60), name: String(campaign?.name ?? "").slice(0, 120) },
       nav: { url: u.toString(), title: "", loading: true, canGoBack: false, canGoForward: false }, captcha: false, locked: false, lockedBy: null,
       events: [], consoleLog: [], network: [], nextId: 1, shots: new Map(), batch: null, subscribers: new Set(), frame: null, frameSeq: 0, switching: false,
     };
@@ -249,7 +249,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials) => new B
     void (async () => {
       try {
         const basic = credentials?.extra ? parseExtras(credentials.extra).basic : null;
-        s.browser = await openBrowser(guard, basic);
+        s.browser = await openBrowser(guard, basic, { headed: s.headed });
         s.browser.browser?.on?.("disconnected", () => { if (s.status !== "closed") { s.status = "disconnected"; s.error = "The browser was closed or crashed."; pushState(s); } });
         await makeContext(s);
         pushState(s);

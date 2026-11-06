@@ -4,6 +4,7 @@ import http from "node:http";
 import { chromium } from "playwright-core";
 import { createSessions, SessionError, checkEmbeddable, friendlyNavError } from "./browsersession.mjs";
 import { NetGuard } from "./netguard.mjs";
+import { Browser } from "./browser.mjs";
 
 let probe = null;
 try { probe = await chromium.launch({ headless: true }); await probe.close(); } catch { probe = null; }
@@ -270,3 +271,17 @@ test("input is validated", { skip }, async () => {
 });
 
 test.after(async () => { site.close(); });
+
+test("a visible Chrome window is only opened when asked for, and the state says so", { skip }, async () => {
+  const seen = [];
+  const m = make({ openBrowser: (g, c, o) => { seen.push(o); return new Browser(g, c).open(); } }); // the test still runs hidden
+  const a = await m.open({ url: base + "/" });
+  assert.equal(a.state.headed, false);
+  await ready(m, a.token);
+  const b = await m.open({ url: base + "/", window: true });
+  assert.equal(b.state.headed, true);
+  await ready(m, b.token);
+  assert.deepEqual(seen, [{ headed: false }, { headed: true }]);
+  assert.equal(m.state(b.token).headed, true);
+  await m.closeAll();
+});

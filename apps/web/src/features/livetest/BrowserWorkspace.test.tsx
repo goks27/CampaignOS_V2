@@ -117,6 +117,25 @@ describe("BrowserPane", () => {
     expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
   });
 
+  it("lists hosts the guard refused, and lets an admin allow one", async () => {
+    const onAllowHost = vi.fn().mockResolvedValue(undefined);
+    pane(fake({ events: [ev({ id: 9, category: "blocked", severity: "info", url: "https://cdn.example.com/a.png", message: "Not loaded" }), ev({ id: 10, category: "blocked", severity: "info", url: "https://cdn.example.com/b.png", message: "Not loaded" })] }), { onAllowHost });
+    expect(screen.getByTestId("blocked-hosts")).toHaveTextContent("cdn.example.com");
+    fireEvent.click(screen.getByTestId("allow-cdn.example.com"));
+    await waitFor(() => expect(onAllowHost).toHaveBeenCalledWith("cdn.example.com"));
+  });
+
+  it("only names the hosts when the person cannot change Settings", () => {
+    pane(fake({ events: [ev({ id: 9, category: "blocked", severity: "info", url: "https://cdn.example.com/a.png", message: "Not loaded" })] }));
+    expect(screen.getByTestId("blocked-hosts")).toHaveTextContent(/Ask an admin/);
+    expect(screen.queryByRole("button", { name: /Allow cdn/ })).toBeNull();
+  });
+
+  it("says a Chrome window is open when the session is a visible one", () => {
+    pane(fake({ state: { ...base, headed: true } }));
+    expect(screen.getByTestId("headed")).toHaveTextContent(/Use that window/);
+  });
+
   it("shows a CAPTCHA notice and the lost-connection banner", () => {
     pane(fake({ state: { ...base, captcha: true }, connection: "lost" }));
     expect(screen.getByTestId("captcha")).toHaveTextContent(/never bypassed/);

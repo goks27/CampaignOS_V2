@@ -10,6 +10,8 @@ const svc = vi.hoisted(() => ({
   live: { state: vi.fn(), runs: vi.fn(), start: vi.fn(), answer: vi.fn(), stop: vi.fn(), shot: vi.fn() },
   browser: { open: vi.fn(), embeddable: vi.fn(), presets: vi.fn(), command: vi.fn(), log: vi.fn(), shot: vi.fn(), input: vi.fn(), streamUrl: () => "http://127.0.0.1:4317/browser/stream?token=t" },
 }));
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ isAdmin: true, me: { workspaceId: "w1" } }) }));
+vi.mock("@/services/settings", () => ({ settingsService: { update: vi.fn().mockResolvedValue({}) } }));
 vi.mock("@/services/development", () => ({ developmentService: svc.development }));
 vi.mock("@/services/liveSessions", () => ({ liveSessionsService: { list: vi.fn().mockResolvedValue([]), save: vi.fn(), remove: vi.fn() } }));
 vi.mock("@/services/connector", () => ({ connectorService: { liveFrame: vi.fn().mockResolvedValue(null), live: vi.fn().mockResolvedValue({ active: true, where: { url: "https://staging.gold.example/register", device: "iPhone 15", pageNo: 2, pageTotal: 6 } }) }, liveTestService: svc.live, browserService: svc.browser }));
@@ -111,6 +113,14 @@ describe("the automatic run", () => {
     expect(req.credentials).toBeUndefined();
     expect(req.device).toBeUndefined(); // no device or OS is picked: the connector runs them all
     expect(req.steps).toBeUndefined();
+  });
+
+  it("opens a real Chrome window on this PC from its own button", async () => {
+    show();
+    await waitFor(() => expect(url()).toHaveValue("https://staging.gold.example/register"));
+    fireEvent.click(screen.getByTestId("open-window"));
+    await waitFor(() => expect(svc.browser.open).toHaveBeenCalledTimes(1));
+    expect(svc.browser.open.mock.calls[0]![0]).toMatchObject({ url: "https://staging.gold.example/register", window: true });
   });
 
   it("typing a half-finished address does not open anything, but Enter does once it is a real URL", async () => {

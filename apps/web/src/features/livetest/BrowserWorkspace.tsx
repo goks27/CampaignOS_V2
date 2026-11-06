@@ -31,7 +31,7 @@ function Placeholder({ tone, title, detail, busy }: { tone: "gray" | "blue" | "a
  * page itself. The page is the real site in a real browser on this PC, shown as a live picture; your clicks, scrolling and typing are
  * sent to it as fractions of the picture, so they land in the right place at any zoom or screen size.
  */
-export function BrowserPane({ browser, presets, offline, embedNote, testing, onCaptured }: { browser: Browser; presets: BrowserPreset[]; offline: boolean; embedNote: string | null; testing: boolean; onCaptured: (msg: string) => void }) {
+export function BrowserPane({ browser, presets, offline, embedNote, testing, onCaptured, onAllowHost }: { browser: Browser; presets: BrowserPreset[]; onAllowHost?: (host: string) => Promise<void> | void; offline: boolean; embedNote: string | null; testing: boolean; onCaptured: (msg: string) => void }) {
   const { state: s, frame, connection } = browser;
   const [address, setAddress] = React.useState("");
   const [editing, setEditing] = React.useState(false);
@@ -88,6 +88,7 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
   const toggleFull = () => { const box = shell.current?.parentElement; if (!box) return; if (document.fullscreenElement) void document.exitFullscreen(); else void box.requestFullscreen?.().catch(() => setProblem("Full screen is not available in this browser.")); };
   const capture = () => void run(async () => { await browser.command({ type: "capture", note: "Screenshot captured" }); onCaptured("Screenshot captured. It is in the Errors tab under notes."); });
 
+  const blockedHosts = React.useMemo(() => [...new Set(browser.events.filter((e) => e.category === "blocked").map((e) => { try { return new URL(e.url).hostname; } catch { return ""; } }).filter(Boolean))].slice(0, 4), [browser.events]);
   const message = stateMessage(s, Boolean(browser.token) || browser.opening, offline);
   const showMessage = !frame && message;
   const loading = Boolean(s && (s.loading || s.status === "launching" || s.status === "loading")) || browser.opening;
@@ -97,46 +98,64 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
 
   return (
     <Card className={cn("flex min-w-0 flex-col overflow-hidden", full && "rounded-none")} data-testid="browser-pane">
-      {/* ---- toolbar */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-side px-2 py-1.5" data-testid="browser-toolbar">
+      {/* ---- Chrome-style: a tab, the address row, then a thin device bar like the device mode in Chrome's own tools */}
+      <div className="flex items-end gap-2 bg-hover px-2 pt-1.5" data-testid="browser-tabs">
+        <div className="flex min-w-0 max-w-[260px] items-center gap-2 rounded-t-lg bg-surface px-3 py-1.5 text-xs">
+          {loading ? <Loader2 className="size-3.5 shrink-0 animate-spin text-muted motion-reduce:animate-none" aria-label="Loading" data-testid="loading" /> : <Lock className="size-3.5 shrink-0 text-muted" aria-hidden />}
+          <span className="min-w-0 flex-1 truncate" data-testid="tab-title">{s?.title || (url ? new URL(url, "http://x").hostname : "New tab")}</span>
+          {browser.token && <button className="shrink-0 rounded p-0.5 text-muted hover:bg-hover hover:text-text" aria-label="Close preview" title="Close the preview" onClick={() => void browser.close()}><X className="size-3.5" /></button>}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 border-b border-line bg-surface px-2 py-1.5" data-testid="browser-toolbar">
         <Button size="sm" variant="ghost" aria-label="Back" disabled={!usable || locked || !s?.canGoBack} onClick={() => void run(() => browser.command({ type: "back" }))}><ArrowLeft /></Button>
         <Button size="sm" variant="ghost" aria-label="Forward" disabled={!usable || locked || !s?.canGoForward} onClick={() => void run(() => browser.command({ type: "forward" }))}><ArrowRight /></Button>
         <Button size="sm" variant="ghost" aria-label="Refresh" disabled={!usable || locked} onClick={() => void run(() => browser.command({ type: "reload" }))}><RotateCw /></Button>
-        <form className="flex min-w-[180px] flex-1 items-center gap-2 rounded-ctl bg-surface px-2" onSubmit={go}>
-          {loading ? <Loader2 className="size-3.5 shrink-0 animate-spin text-muted motion-reduce:animate-none" aria-label="Loading" data-testid="loading" /> : <Lock className="size-3.5 shrink-0 text-muted" aria-hidden />}
-          <input aria-label="Address" value={address} disabled={!usable || locked} onFocus={() => setEditing(true)} onBlur={() => setEditing(false)} onChange={(e) => setAddress(e.target.value)} placeholder="Enter a web address" spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent py-1.5 font-mono text-xs text-text-2 outline-none placeholder:text-muted disabled:opacity-70" />
+        <form className="flex min-w-[160px] flex-1 items-center gap-2 rounded-full bg-hover px-3" onSubmit={go}>
+          <input aria-label="Address" value={address} disabled={!usable || locked} onFocus={(e) => { setEditing(true); e.currentTarget.select(); }} onBlur={() => setEditing(false)} onChange={(e) => setAddress(e.target.value)} placeholder="Search or enter a web address" spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-text outline-none placeholder:text-muted disabled:opacity-70" />
         </form>
-        <Select aria-label="Screen size" className="w-[172px]" value={s?.device ?? "desktop"} disabled={!usable || locked} onChange={(e) => void run(() => browser.command({ type: "device", device: e.target.value }))} options={deviceOptions} />
-        <Select aria-label="Zoom" className="w-[84px]" value={zoom} onChange={(e) => setZoom(e.target.value)} options={ZOOMS} />
         <Button size="sm" variant="ghost" aria-label="Capture screenshot" title="Capture screenshot" disabled={!usable} onClick={capture}><Camera /></Button>
-        <Button size="sm" variant="ghost" aria-label="Open in a new tab" title="Open in a new tab (this opens the site on its own, without this session)" disabled={!url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}><ExternalLink /></Button>
+        <Button size="sm" variant="ghost" aria-label="Open in a new tab" title="Open in a new tab (opens the site on its own, without this session)" disabled={!url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}><ExternalLink /></Button>
         <Button size="sm" variant="ghost" aria-label={full ? "Exit full screen" : "Full screen"} onClick={toggleFull}>{full ? <Minimize2 /> : <Maximize2 />}</Button>
-        {browser.token && <Button size="sm" variant="ghost" aria-label="Close preview" title="Close the preview" onClick={() => void browser.close()}><X /></Button>}
+      </div>
+      <div className="flex items-center gap-2 border-b border-line bg-side px-2 py-1 text-xs text-text-2" data-testid="device-bar" title="Emulated in Chromium on this PC: screen size, pixel density, touch and user agent. It is not a physical phone or Safari's engine.">
+        <Select aria-label="Screen size" className="w-[170px]" value={s?.device ?? "desktop"} disabled={!usable || locked} onChange={(e) => void run(() => browser.command({ type: "device", device: e.target.value }))} options={deviceOptions} />
+        <Select aria-label="Zoom" className="w-[80px]" value={zoom} onChange={(e) => setZoom(e.target.value)} options={ZOOMS} />
+        <span className="ml-auto hidden text-muted sm:inline">Emulated device</span>
       </div>
 
       {/* ---- banners */}
       {problem && <p className="border-b border-line bg-st-red/5 px-3 py-1.5 text-xs text-st-red" role="alert" data-testid="pane-problem">{problem}</p>}
       {connection === "lost" && s?.status !== "closed" && <p className="flex items-center gap-2 border-b border-line bg-st-amber/10 px-3 py-1.5 text-xs text-st-amber" data-testid="lost"><WifiOff className="size-3.5" />The connection to the preview was lost. It reconnects by itself; if not, open the preview again.</p>}
+      {s?.headed && <p className="flex items-center gap-2 border-b border-line bg-st-blue/10 px-3 py-1.5 text-xs text-st-blue" data-testid="headed"><ExternalLink className="size-3.5" />A Chrome window is open on this PC. Use that window; the picture here follows it, and errors and screenshots are still recorded. Closing the window ends the session.</p>}
       {s?.captcha && <p className="flex items-center gap-2 border-b border-line bg-st-amber/10 px-3 py-1.5 text-xs text-st-amber" data-testid="captcha"><ShieldAlert className="size-3.5" />A CAPTCHA is on this page. It is never bypassed: solve it yourself here, then carry on.</p>}
       {locked && <p className="flex items-center gap-2 border-b border-line bg-st-blue/10 px-3 py-1.5 text-xs text-st-blue" data-testid="locked"><Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />{s?.lockedBy ? `${s.lockedBy[0]!.toUpperCase()}${s.lockedBy.slice(1)}` : "A test is running"}. You can watch; clicking and typing are off until it ends.</p>}
       {s?.paused && <p className="flex items-center gap-2 border-b border-line bg-side px-3 py-1.5 text-xs text-text-2" data-testid="paused"><Lock className="size-3.5" />Picture paused while a secret is typed.</p>}
       {testing && <p className="flex items-center gap-2 border-b border-line bg-st-blue/10 px-3 py-1.5 text-xs text-st-blue" data-testid="testing-banner"><Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />An all-device test is running in its own browser. This preview is untouched.</p>}
 
+      {blockedHosts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-st-amber/10 px-3 py-1.5 text-xs text-st-amber" data-testid="blocked-hosts">
+          <span className="min-w-0">Some of the page (pictures, fonts) comes from {blockedHosts.length === 1 ? "a host" : "hosts"} that {blockedHosts.length === 1 ? "is" : "are"} not allowed, so it may look broken:</span>
+          {blockedHosts.map((h) => (onAllowHost
+            ? <Button key={h} size="sm" onClick={() => void run(async () => { await onAllowHost(h); })} data-testid={`allow-${h}`}>Allow {h}</Button>
+            : <span key={h} className="font-mono">{h}</span>))}
+          {!onAllowHost && <span>Ask an admin to allow {blockedHosts.length === 1 ? "it" : "them"} in Settings.</span>}
+        </div>
+      )}
+
       {/* ---- the page */}
       <div ref={shell} tabIndex={0} role="application" aria-label="Live browser preview" onKeyDown={onKeyDown} onPaste={onPaste}
-        className={cn("relative flex min-h-[300px] justify-center overflow-auto bg-side outline-none focus-visible:ring-2 focus-visible:ring-accent/40", full ? "min-h-0 flex-1" : "max-h-[72vh]")} data-testid="viewport">
+        className={cn("relative flex min-h-[300px] items-start justify-center overflow-auto bg-side outline-none focus-visible:ring-2 focus-visible:ring-accent/40", full ? "min-h-0 flex-1" : "max-h-[72vh]")} data-testid="viewport">
         {frame && s?.status !== "closed" ? (
           <img ref={img} src={frame} alt={s?.title ? `Live preview of ${s.title}` : "Live preview of the site"} draggable={false} onClick={onClick} onContextMenu={onContext}
-            className={cn("block h-auto select-none bg-white", canType ? "cursor-pointer" : "cursor-default", !fitted && "max-w-none")} style={{ width }} data-testid="picture" />
+            className={cn("block h-auto select-none bg-white", s && s.device !== "desktop" && s.device !== "laptop" && "my-3 shadow-md ring-1 ring-line", canType ? "cursor-pointer" : "cursor-default", !fitted && "max-w-none")} style={{ width, maxWidth: fitted && s ? s.viewport.width : undefined }} data-testid="picture" />
         ) : showMessage ? <Placeholder {...message} busy={message.tone === "blue"} /> : (
           <Placeholder tone="blue" title="Loading the page…" detail={url ? `Waiting for ${url}` : "Waiting for the first picture."} busy />
         )}
       </div>
 
       {s?.status === "error" && frame && <p className="border-t border-line bg-st-red/5 px-3 py-1.5 text-xs text-st-red" data-testid="pane-error">{message?.title}: {message?.detail}</p>}
-      {embedNote && <p className="border-t border-line px-3 py-1.5 text-xs text-muted" data-testid="embed-note">{embedNote}</p>}
-      <p className="border-t border-line px-3 py-1.5 text-xs text-muted">Emulated in Chromium on this PC (screen size, pixel density, touch and user agent). It is not a physical phone or Safari’s engine.</p>
+      {embedNote && <p className="truncate border-t border-line px-3 py-1 text-[11px] text-muted" title={embedNote} data-testid="embed-note">{embedNote}</p>}
     </Card>
   );
 }

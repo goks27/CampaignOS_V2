@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronRight, Circle, Clock, Download, Loader2, Lock, MonitorPlay, Play, Plus, RotateCcw, Save, Send, Square, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ExternalLink, PanelLeftClose, PanelLeftOpen, ArrowUp, CheckCircle2, ChevronRight, Circle, Clock, Download, Loader2, Lock, MonitorPlay, Play, Plus, RotateCcw, Save, Send, Square, Trash2, XCircle } from "lucide-react";
 import { Button, Card, Checkbox, Dialog, DialogContent, Field, Input, Select, Tabs, Textarea } from "@/components/ui";
 import { PageHeader, Pill, StatusDot } from "@/components/common";
 import { useToast } from "@/components/toast";
@@ -12,6 +12,8 @@ import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import { browserService, connectorService, liveTestService, type AutoResult, type BrowserPreset, type LiveTestState, type LiveTestStep } from "@/services/connector";
 import { developmentService, type Step } from "@/services/development";
 import { liveSessionsService } from "@/services/liveSessions";
+import { settingsService } from "@/services/settings";
+import { useAuth } from "@/lib/auth";
 import type { CampaignWithRelations } from "@/services/campaigns";
 import { placeLabel } from "@/features/live/model";
 import { BrowserPane, InspectPanel } from "./BrowserWorkspace";
@@ -184,6 +186,10 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
   const [previewDevice, setPreviewDevice] = React.useState("desktop");
   const [embedNote, setEmbedNote] = React.useState<string | null>(null);
   const browser = useBrowserSession();
+  const { isAdmin, me } = useAuth();
+  // the set-up column can be tucked away so the preview gets the whole width; remembered per viewer
+  const [collapsed, setCollapsed] = React.useState(() => { try { return localStorage.getItem("journey.livetest.setup") === "closed"; } catch { return false; } });
+  const toggleSetup = () => setCollapsed((c) => { try { localStorage.setItem("journey.livetest.setup", c ? "open" : "closed"); } catch { /* not available: the choice is just not remembered */ } return !c; });
   const savedSessions = useQuery({ queryKey: ["live-sessions", campaignId], queryFn: () => liveSessionsService.list(campaignId), enabled: Boolean(campaignId), retry: false });
   const saveSession = useAction(() => {
     const st = browser.state!;
@@ -244,19 +250,28 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
 
   // ---- what to run
   const allowed = React.useMemo(() => [...(settings?.allowed_domains ?? []), ...(envs.data ?? []).flatMap((e) => e.allowed_domains ?? [])], [settings, envs.data]);
+  // A site's pictures and fonts often come from another host (a CDN). The guard refuses hosts nobody allowed, so the preview lists them
+  // and an admin can allow one with a click; the preview then opens again so the page loads with it.
+  const allowHost = async (host: string) => {
+    const next = [...new Set([...(settings?.allowed_domains ?? []), host])];
+    await settingsService.update(me!.workspaceId!, { allowed_domains: next });
+    void qc.invalidateQueries({ queryKey: qk.settings });
+    toast.success(`${host} allowed in Settings`);
+    void openPreview(browser.state?.url ?? url, [host]);
+  };
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["livetest"] }); };
   const ready = online && !jobRunning && !anyActive;
   const view: "browser" | "run" = pick ?? (selectedId && state.data && state.data.status !== "idle" ? "run" : "browser");
   const sessionReady = Boolean(browser.token && browser.state && (browser.state.status === "ready" || browser.state.status === "loading") && !browser.state.locked);
-  const openPreview = async (override?: string) => {
+  const openPreview = async (override?: string, extraAllowed: string[] = [], window = false) => {
     const target = (override ?? url).trim();
     if (!online || !looksLikeUrl(target)) return;
     setPick("browser"); setEmbedNote(null);
-    void browser.open({ url: target, device: previewDevice, allowed, campaign: campaignId ? { id: campaignId, name: campaignName } : undefined, credentials: creds.extra.trim() ? { extra: creds.extra } : undefined });
+    void browser.open({ url: target, device: previewDevice, allowed: [...allowed, ...extraAllowed], campaign: campaignId ? { id: campaignId, name: campaignName } : undefined, credentials: creds.extra.trim() ? { extra: creds.extra } : undefined, ...(window ? { window: true } : {}) });
     const check = await browserService.embeddable(target, allowed);
     setEmbedNote(check?.embeddable === false
-      ? `${check.reason ?? "The site blocks embedding."} Journey does not need to embed it: the page runs in a real browser on this PC and is shown here as a live picture.`
-      : "Shown as a live picture of a real browser on this PC (not an embedded frame), so clicks, tests and error capture all happen in the same page.");
+      ? `${check.reason ?? "The site blocks embedding."} Shown as a live picture of a real browser instead.`
+      : "A live picture of a real browser on this PC, so clicks, tests and error capture happen in the same page.");
   };
   const autoBlocker = !looksLikeUrl(url) ? "Enter the staging URL, starting with https://" : loginProblem(creds);
   const startAuto = useAction((override?: string) => liveTestService.start(autoRequest(override ?? url, creds, allowed, campaignId ? { id: campaignId, name: campaignName } : undefined)), { error: "Could not start", onSuccess: () => { setPick("run"); refresh(); } });
@@ -311,8 +326,8 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
       {!campaign && <PageHeader title="Live test" description="Paste a staging URL and it tests every page on every device by itself, in a real browser on this PC. If the page asks you to register, it finds the fields and asks you for what it needs (a mobile number, an OTP), once." />}
       {!online && <p className="mb-3 rounded-box border border-line bg-side px-3 py-2 text-sm text-text-2" data-testid="offline">The connector isn’t running on this PC, so a live test can’t start. Run <span className="font-mono text-xs">npm run claude</span> in the project folder.</p>}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-4">
+      <div className={cn("grid items-start gap-4", !collapsed && "lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]")}>
+        <div className={cn("min-w-0 space-y-4", collapsed && "lg:hidden")} data-testid="setup">
           {/* ------------------------------------------------ set up: a URL, and that is all most runs need */}
           <Card className="min-w-0 space-y-3 p-3">
             <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); void openPreview(); }}>
@@ -345,6 +360,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
               </details>
 
               <Button type="submit" variant="primary" className="w-full" disabled={!online || !looksLikeUrl(url) || browser.opening} loading={browser.opening}><MonitorPlay />Open preview</Button>
+              <Button type="button" variant="secondary" className="w-full" disabled={!online || !looksLikeUrl(url) || browser.opening} onClick={() => void openPreview(undefined, [], true)} data-testid="open-window" title="Opens a real Chrome window on this PC that you use directly. Journey keeps recording its errors and screenshots."><ExternalLink />Open in Chrome window</Button>
               {!active ? <Button type="button" variant="secondary" className="w-full" disabled={!ready || Boolean(autoBlocker)} loading={startAuto.isPending} onClick={() => startAuto.mutate(undefined)}><Play />Run test on every device</Button>
                 : <Button type="button" variant="danger" className="w-full" loading={stop.isPending} onClick={() => stop.mutate(undefined)}><Square />Stop</Button>}
               {browser.token && browser.state && browser.state.status !== "closed" && (
@@ -434,6 +450,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
 
         {/* ------------------------------------------------ preview */}
         <div className="min-w-0 space-y-4" data-testid="preview">
+          <Button size="sm" variant="ghost" className="hidden lg:inline-flex" onClick={toggleSetup} aria-expanded={!collapsed} data-testid="toggle-setup">{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}{collapsed ? "Show set-up" : "Hide set-up"}</Button>
           {browser.token && run && (
             <div className="flex gap-1.5" role="group" aria-label="What to show">
               <Button size="sm" variant={view === "browser" ? "primary" : "secondary"} onClick={() => setPick("browser")} data-testid="show-browser"><MonitorPlay />Preview</Button>
@@ -441,8 +458,8 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
             </div>
           )}
           {view === "browser" && (
-            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="browser-view">
-              <BrowserPane browser={browser} presets={presetList} offline={!online && !browser.token} embedNote={embedNote} testing={active && isAuto} onCaptured={(m) => toast.success(m)} />
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" data-testid="browser-view">
+              <BrowserPane browser={browser} presets={presetList} onAllowHost={isAdmin && me?.workspaceId ? allowHost : undefined} offline={!online && !browser.token} embedNote={embedNote} testing={active && isAuto} onCaptured={(m) => toast.success(m)} />
               <InspectPanel browser={browser} run={run} campaignId={campaignId} device={presetList.find((p) => p.id === (browser.state?.device ?? previewDevice))?.label ?? previewDevice} />
             </div>
           )}
