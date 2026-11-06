@@ -51,7 +51,7 @@ test("opens a valid URL in a real browser and streams what it shows", { skip }, 
   assert.equal(await until(() => m.state(r.token).title), "/"); // the title arrives a moment after the page is ready
   assert.equal(st.url, base + "/");
   assert.equal(st.campaignName, "Gold Drop");
-  assert.deepEqual(st.viewport, { width: 1440, height: 900 });
+  assert.deepEqual(st.viewport, { width: 393, height: 659 });
   const f = await until(() => m.frame(r.token));
   assert.ok(f[0] === 0xff && f[1] === 0xd8, "a JPEG frame of the page");
   const got = []; const off = m.subscribe(r.token, (kind) => got.push(kind));
@@ -105,28 +105,29 @@ test("typing and submitting a form reaches the website", { skip }, async () => {
 
 test("switching the size keeps the page: a resize for desktop sizes, the same page reopened for a phone", { skip }, async () => {
   const m = make();
-  const t = await open(m);
+  const t = await open(m, "/", { device: "desktop" });
   await m.page(t).evaluate("window.__marker = 42");
   await m.setDevice(t, "laptop");
   assert.deepEqual(m.state(t).viewport, { width: 1366, height: 768 });
   assert.equal(await m.page(t).evaluate("innerWidth"), 1366);
   assert.equal(await m.page(t).evaluate("window.__marker"), 42, "desktop to laptop does not reload the page");
-  await m.setDevice(t, "iphone");
-  await until(() => m.state(t).device === "iphone" && m.state(t).status === "ready" && !m.state(t).loading);
+  await m.setDevice(t, "iphone"); // an older id still opens the same device
+  await until(() => m.state(t).device === "iphone-15" && m.state(t).status === "ready" && !m.state(t).loading);
   assert.equal(m.state(t).url, base + "/", "still on the same page");
-  assert.equal(await m.page(t).evaluate("innerWidth"), 390);
+  assert.equal(await m.page(t).evaluate("innerWidth"), 393);
   assert.match(await m.page(t).evaluate("navigator.userAgent"), /iPhone/);
   assert.equal(await m.page(t).evaluate("'ontouchstart' in window"), true, "touch is emulated");
-  await m.setDevice(t, "android");
-  assert.equal(await m.page(t).evaluate("innerWidth"), 360);
-  assert.deepEqual(m.state(t).viewport, { width: 360, height: 800 });
-  await m.setDevice(t, "tablet");
-  await until(() => m.state(t).device === "tablet" && !m.state(t).loading);
+  await m.setDevice(t, "galaxy-s9");
+  await until(() => m.state(t).device === "galaxy-s9" && !m.state(t).loading);
+  assert.equal(await m.page(t).evaluate("innerWidth"), 320, "the narrowest Android phone");
+  assert.deepEqual(m.state(t).viewport, { width: 320, height: 658 });
+  await m.setDevice(t, "ipad-mini");
+  await until(() => m.state(t).device === "ipad-mini" && !m.state(t).loading);
   assert.equal(await m.page(t).evaluate("innerWidth"), 768);
   await assert.rejects(m.setDevice(t, "fridge"), /not one of the sizes/);
   // phone clicks still land where they are pointed
-  await m.setDevice(t, "iphone");
-  await until(() => m.state(t).device === "iphone" && !m.state(t).loading);
+  await m.setDevice(t, "iphone-15");
+  await until(() => m.state(t).device === "iphone-15" && !m.state(t).loading);
   await m.input(t, { type: "click", ...(await at(m, t, "#about")) });
   await until(() => m.state(t).url === base + "/about");
   await m.closeAll();

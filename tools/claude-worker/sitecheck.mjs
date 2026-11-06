@@ -72,7 +72,7 @@ const sev = (s) => (SEVERITY.includes(s) ? s : "low");
  * Problems found without any model, from what the browser recorded for one page load.
  * Returns [{ key, severity, title, observed, expected, fix, kind, console?, network? }].
  */
-export function pageIssues(cap, { device = "desktop", isStart = false, touch = device === "mobile" } = {}) {
+export function pageIssues(cap, { device = "desktop", isStart = false, touch = device === "mobile", primary = false } = {}) {
   const out = [];
   const f = cap.facts ?? {};
   const add = (i) => out.push({ confidence: "high", ...i });
@@ -131,7 +131,7 @@ export function pageIssues(cap, { device = "desktop", isStart = false, touch = d
     add({ kind: "tiny", key: `tiny:${where}`, severity: "low", confidence: "medium", title: `Very small text: ${where}`,
       observed: `${f.tinyText} pieces of text are smaller than 11px.`, expected: "Body text of about 14px or more on a phone.", fix: "Increase the font size for small screens." });
   }
-  if (device === "desktop" && f.title === "" && cap.status < 400) {
+  if ((device === "desktop" || primary) && f.title === "" && cap.status < 400) {
     add({ kind: "title", key: `title:${where}`, severity: "low", title: `Page has no title: ${where}`, observed: "The page <title> is empty.", expected: "Every page has a clear title.", fix: "Add a <title>." });
   }
   if (isStart && device === "mobile" && f.viewportMeta === false) {
@@ -346,7 +346,7 @@ export async function siteCheck(run, browser) {
       pages.push({ url: cap.url, cap, key });
       report.get(primary.id).pages_tested++;
       if (cap.captcha) captcha++;
-      for (const issue of pageIssues(cap, { device: view(primary), isStart: pages.length === 1 })) entries.push({ issue, url: cap.url, device: primary.label, captureKey: key });
+      for (const issue of pageIssues(cap, { device: view(primary), isStart: pages.length === 1, primary: true })) entries.push({ issue, url: cap.url, device: primary.label, captureKey: key });
       for (const l of cap.facts?.links ?? []) { const a = allLinks.get(l.href) ?? []; if (a.length < 5) a.push(cap.url); allLinks.set(l.href, a); }
       queue.push(...pickCrawlLinks(cap.facts?.links, startUrl, seen));
     }
@@ -426,7 +426,7 @@ export async function siteCheck(run, browser) {
       answer = await run.claude(`${PREAMBLE}
 
 TASK: Review screenshots of ONE page of a campaign website, as a careful tester would, on several devices, and report problems a person would notice. Page: ${pg.url}
-The files are the same page on: ${labels.join(", ")}. Each file name says which device it is. The desktop is shown in full; the other devices show the first screen.
+The files are the same page on: ${labels.join(", ")}. Each file name says which device it is. The first device is shown in full; the other devices show the first screen.
 Files (read each with the Read tool):
 ${files.map((f) => `- ${f}`).join("\n")}
 

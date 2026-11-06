@@ -10,6 +10,7 @@ import { groupIssues, pageIssues, pageKey, pickCrawlLinks, RISKY, sameSite } fro
 import { runStaging } from "./staging.mjs";
 import { NetGuard } from "./netguard.mjs";
 import { validate } from "./core.mjs";
+import { DEVICES } from "./devices.mjs";
 
 // ---------------------------------------------------------------- pure functions
 test("pageKey collapses queries, fragments, case and trailing slashes", () => {
@@ -93,7 +94,7 @@ async function site() {
         <a href="/about">About</a> <a href="/logout">Log out</a> <a href="/account/delete">Delete my account</a> <a href="/gone">Old page</a>
         <a href="/redir">Elsewhere</a> <a href="https://elsewhere.example/">External</a> <a href="/file.pdf">PDF</a>
         <img src="/missing.png" alt="hero"> <img src="/ok.png"><input type="text">`));
-      case "/about": return send(200, page(`<h1>About</h1><div style="width:900px;height:20px;background:#ddd">wide</div><p>Lorem ipsum dolor</p><script>console.error("about exploded")</script>`));
+      case "/about": return send(200, page(`<h1>About</h1><div style="width:500px;height:20px;background:#ddd">wide</div><p>Lorem ipsum dolor</p><script>console.error("about exploded")</script>`));
       case "/gone": return send(404, "nope");
       case "/redir": res.writeHead(302, { Location: `http://127.0.0.1:${srv.address().port}/secret` }); return res.end();
       case "/secret": return send(200, "TOP SECRET");
@@ -108,7 +109,7 @@ async function site() {
 const fakeDb = () => { const uploads = []; return { uploads, upload: async (b, p) => { uploads.push(`${b}/${p}`); }, rpc: async () => null }; };
 const claudeAnswer = (findings) => async (o) => ({ structured_output: { findings }, usage: { input_tokens: 4, output_tokens: 3 }, modelUsage: { "claude-sonnet-5-5": { outputTokens: 3 } }, _prompt: o.prompt });
 
-test("site_check: opens the pages, follows safe links only, reports what is broken, and never touches risky or private URLs", async () => {
+test("site_check: opens the pages, follows safe links only, reports what is broken, and never touches risky or private URLs", { timeout: 300_000 }, async () => {
   hits.length = 0;
   const { srv, base } = await site();
   try {
@@ -118,7 +119,7 @@ test("site_check: opens the pages, follows safe links only, reports what is brok
       capture_prefix: "camp/job-1/", limits: { site_check_max_pages: 2 } } };
     let prompts = [];
     const run = async (o) => { prompts.push(o.prompt); return claudeAnswer([
-      { title: "Typo in the heading", severity: "low", confidence: "medium", evidence_note: "Heading reads 'Hmoe'", file: "site-1-desktop-part1.png", box: [0, 0, 500, 100], description: "d", observed: "Hmoe", expected: "Home", suggested_correction: "Fix" },
+      { title: "Typo in the heading", severity: "low", confidence: "medium", evidence_note: "Heading reads 'Hmoe'", file: "site-1-iphone-15-part1.png", box: [0, 0, 900, 150], description: "d", observed: "Hmoe", expected: "Home", suggested_correction: "Fix" },
       { title: "Unknown file ignored for region", severity: "low", confidence: "low", evidence_note: "x", file: "../../etc/passwd", box: [0, 0, 10, 10] }])(o); };
     const { result, meta } = await runStaging(brief, { db: fakeDb(), model: "sonnet", timeoutMs: 5000, run, guard: new NetGuard(["localhost"], { unsafeAllowPrivateForTests: true }) });
     const titles = result.findings.map((f) => f.title);
@@ -146,12 +147,14 @@ test("site_check: opens the pages, follows safe links only, reports what is brok
 
     // every device opened every page, and the report says which device has which problem
     const dev = Object.fromEntries(result.notes.devices.map((d) => [d.id, d]));
-    assert.deepEqual(Object.keys(dev), ["desktop", "laptop", "iphone-15", "iphone-se", "pixel-7", "galaxy-s9", "ipad"]);
+    assert.deepEqual(Object.keys(dev), DEVICES.map((d) => d.id));
+    assert.ok(DEVICES.every((d) => d.touch) && !DEVICES.some((d) => /desktop|laptop/i.test(d.id)), "phones and tablets only");
+    assert.ok(["iPhone", "Android", "iPad", "Android tablet"].every((f) => DEVICES.some((d) => d.family === f)), "iOS and Android, phones and tablets");
     assert.ok(result.notes.devices.every((d) => d.pages_tested === 2 && d.pages_failed === 0 && d.engine === "Chromium (emulated)"), JSON.stringify(result.notes.devices.map((d) => [d.id, d.pages_tested])));
     assert.ok(dev["iphone-15"].top_issues.some((t) => /scrolls sideways/.test(t)), "the wide block is a problem on a phone");
-    assert.ok(!dev.desktop.top_issues.some((t) => /scrolls sideways/.test(t)), "and not on the desktop");
+    assert.ok(!dev.ipad.top_issues.some((t) => /scrolls sideways/.test(t)), "and not on a tablet, where it fits");
     const side = result.findings.find((f) => /scrolls sideways/.test(f.title));
-    assert.match(side.title, /\(iPhone 15/, "a problem seen on only some devices says which");
+    assert.match(side.title, /\(.*iPhone 15/, "a problem seen on only some devices says which");
     assert.match(side.description, /emulated devices/);
     assert.doesNotMatch(result.findings.find((f) => /Broken image: missing/.test(f.title)).title, /\(/, "a problem seen on every device is not narrowed to one");
     assert.match(prompts[0], /iPhone 15.*Pixel 7/s);
@@ -159,9 +162,9 @@ test("site_check: opens the pages, follows safe links only, reports what is brok
 
     // shape
     assert.equal(result.notes.pages_checked, 2);
-    assert.equal(result.notes.devices_tested, 7);
+    assert.equal(result.notes.devices_tested, DEVICES.length);
     assert.ok(result.notes.links_checked >= 1);
-    assert.ok(result.captures.length >= 3 && result.captures.every((c) => c.storage_path.startsWith("camp/job-1/")));
+    assert.ok(result.captures.length >= 2 && result.captures.every((c) => c.storage_path.startsWith("camp/job-1/")));
     assert.match(meta.prompt_version, /sitecheck/);
     assert.deepEqual(validate(result, brief), []);
   } finally { srv.close(); }
@@ -204,7 +207,7 @@ async function memberSite() {
 }
 const memberBrief = (base, creds) => ({ id: "job-m", review_type: "site_check", dir: fs.mkdtempSync(path.join(os.tmpdir(), "cw-site-")), timeout_seconds: 900, files: [], input: {
   staging_url: base, page_paths: ["/"], allowed_domains: [], environment: creds ? { id: "e", base_url: base, has_credentials: true } : null, design_assets: [], requirements: [], test_cases: [],
-  capture_prefix: "camp/job-m/", limits: { site_check_max_pages: 5, site_check_devices: ["desktop", "iphone-15"] } } });
+  capture_prefix: "camp/job-m/", limits: { site_check_max_pages: 5, site_check_devices: ["iphone-15", "pixel-7"] } } });
 const memberDb = (creds) => ({ ...fakeDb(), rpc: async (fn) => (fn === "worker_get_credentials" ? creds : null) });
 const guardLocal = () => new NetGuard(["localhost"], { unsafeAllowPrivateForTests: true });
 
@@ -215,7 +218,7 @@ test("site_check with stored credentials signs in on every device and checks the
     const titles = result.findings.map((f) => f.title);
     assert.ok(titles.some((t) => /Broken image: secret-banner\.png/.test(t)), "the members-only page was reached and checked: " + titles.join(" | "));
     assert.equal(result.notes.login.status, "ok");
-    assert.deepEqual(result.notes.devices.map((d) => [d.id, d.login, d.pages_tested]), [["desktop", "ok", 3], ["iphone-15", "ok", 3]]);
+    assert.deepEqual(result.notes.devices.map((d) => [d.id, d.login, d.pages_tested]), [["iphone-15", "ok", 3], ["pixel-7", "ok", 3]]);
     assert.deepEqual([...new Set(posts)], ["/login"], "the only form ever submitted is the login");
   } finally { srv.close(); }
 });
@@ -253,7 +256,7 @@ test("images the network guard refused are reported as not loaded, never as brok
   try {
     const base = `http://localhost:${srv.address().port}/`;
     const brief = memberBrief(base, false);
-    brief.input.limits.site_check_devices = ["desktop"];
+    brief.input.limits.site_check_devices = ["iphone-15"];
     const { result } = await runStaging(brief, { db: fakeDb(), model: "sonnet", timeoutMs: 5000, run: claudeAnswer([]), guard: new NetGuard(["localhost"], { unsafeAllowPrivateForTests: true }) });
     const titles = result.findings.map((f) => f.title);
     assert.ok(!titles.some((t) => /Broken image: cdn\.png/.test(t)), "an image that was refused is not a broken image: " + titles.join(" | "));

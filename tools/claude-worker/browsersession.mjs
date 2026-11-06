@@ -104,7 +104,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials, opts) =>
     const b = s.batch;
     if (b && now() - b.at < 1500) {
       b.events.push(e);
-      if (b.done) { e.shotRef = b.id; e.hasShot = true; }
+      if (b.done) { if (s.shots.has(b.id)) { e.shotRef = b.id; e.hasShot = true; } } // only when that picture was really taken
       return;
     }
     if (s.shots.size >= MAX_SHOTS || !s.page || s.page.isClosed()) return;
@@ -228,11 +228,11 @@ export function createSessions({ openBrowser = (guard, httpCredentials, opts) =>
   }
 
   // ---------------------------------------------------------------- public API
-  async function open({ url, device = "desktop", allowed = [], campaign = {}, credentials = null, window: headed = false } = {}) {
+  async function open({ url, device = "iphone-15", allowed = [], campaign = {}, credentials = null, window: headed = false } = {}) {
     let u;
     try { u = new URL(String(url ?? "").trim()); } catch { throw new SessionError("Enter a web address starting with https://", "bad_url"); }
     if (!["http:", "https:"].includes(u.protocol)) throw new SessionError("Only http:// and https:// addresses can be opened.", "bad_url");
-    const preset = PRESET_BY_ID.get(device) ?? PRESET_BY_ID.get("desktop");
+    const preset = PRESET_BY_ID.get(device) ?? PRESET_BY_ID.get("iphone-15");
     const guard = makeGuard([...new Set([...(allowed ?? []).map(String).filter(Boolean), u.hostname.toLowerCase()])]);
     const first = await guard.check(u.toString());
     if (!first.ok) throw new SessionError(`That address was not opened: ${first.why}.`, "blocked");

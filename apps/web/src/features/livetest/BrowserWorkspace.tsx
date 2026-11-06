@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ExternalLink, ListTodo, Loader2, Lock, Maximize2, Minimize2, MonitorPlay, RotateCw, ShieldAlert, WifiOff, X, XCircle } from "lucide-react";
+import { AlertTriangle, PanelLeftClose, PanelLeftOpen, ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ExternalLink, ListTodo, Loader2, Lock, Maximize2, Minimize2, MonitorPlay, RotateCw, ShieldAlert, WifiOff, X, XCircle } from "lucide-react";
 import { Button, Card, Checkbox, Select, Tabs } from "@/components/ui";
 import { StatusDot } from "@/components/common";
 import { useToast } from "@/components/toast";
@@ -7,7 +7,7 @@ import { useAction } from "@/hooks/useAction";
 import { cn } from "@/lib/utils";
 import { tasksService } from "@/services/tasks";
 import type { BrowserEvent, BrowserPreset, LiveTestState } from "@/services/connector";
-import { CATEGORY_LABEL, filterEvents, isProblem, keyInput, normalizeAddress, stateMessage, taskFromEvent, timeOnly, toFraction, type Category } from "./browserModel";
+import { CATEGORY_LABEL, contentRect, filterEvents, isProblem, keyInput, normalizeAddress, stateMessage, taskFromEvent, timeOnly, toFraction, type Category } from "./browserModel";
 import type { Browser } from "./useBrowserSession";
 
 type Run = Exclude<LiveTestState, { status: "idle" }>;
@@ -31,13 +31,14 @@ function Placeholder({ tone, title, detail, busy }: { tone: "gray" | "blue" | "a
  * page itself. The page is the real site in a real browser on this PC, shown as a live picture; your clicks, scrolling and typing are
  * sent to it as fractions of the picture, so they land in the right place at any zoom or screen size.
  */
-export function BrowserPane({ browser, presets, offline, embedNote, testing, onCaptured, onAllowHost }: { browser: Browser; presets: BrowserPreset[]; onAllowHost?: (host: string) => Promise<void> | void; offline: boolean; embedNote: string | null; testing: boolean; onCaptured: (msg: string) => void }) {
+export function BrowserPane({ browser, presets, offline, embedNote, testing, onCaptured, onAllowHost, setupHidden, onToggleSetup, onOpenAddress }: { onOpenAddress?: (url: string) => void; browser: Browser; presets: BrowserPreset[]; setupHidden?: boolean; onToggleSetup?: () => void; onAllowHost?: (host: string) => Promise<void> | void; offline: boolean; embedNote: string | null; testing: boolean; onCaptured: (msg: string) => void }) {
   const { state: s, frame, connection } = browser;
   const [address, setAddress] = React.useState("");
   const [editing, setEditing] = React.useState(false);
   const [zoom, setZoom] = React.useState("fit");
   const [full, setFull] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
+  const [focused, setFocused] = React.useState(false);
   const shell = React.useRef<HTMLDivElement>(null);
   const img = React.useRef<HTMLImageElement>(null);
   const url = s?.url ?? "";
@@ -53,10 +54,13 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
     const next = normalizeAddress(address);
     if (!next) { setProblem("Enter a full web address, like https://example.com"); return; }
     setEditing(false);
+    // with no preview open yet (or after it closed), the address bar opens one, like typing into a new tab
+    if (!browser.token || s?.status === "closed" || s?.status === "disconnected") { onOpenAddress?.(next); return; }
     void run(() => browser.command({ type: "navigate", url: next }));
   };
 
-  const point = (e: { clientX: number; clientY: number }) => (img.current ? toFraction(img.current.getBoundingClientRect(), e.clientX, e.clientY) : null);
+  const aspect = s ? s.viewport.width / s.viewport.height : 0;
+  const point = (e: { clientX: number; clientY: number }) => (img.current ? toFraction(contentRect(img.current.getBoundingClientRect(), aspect), e.clientX, e.clientY) : null);
   const onClick = (e: React.MouseEvent) => { if (!canType) return; shell.current?.focus(); const p = point(e); if (p) browser.send({ type: "click", ...p, count: e.detail >= 3 ? 3 : e.detail === 2 ? 2 : 1 }); };
   const onContext = (e: React.MouseEvent) => { e.preventDefault(); if (!canType) return; const p = point(e); if (p) browser.send({ type: "click", ...p, button: "right" }); };
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -75,7 +79,7 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
     const wheel = (e: WheelEvent) => {
       if (!canType) return;
       e.preventDefault();
-      const p = toFraction(el.getBoundingClientRect(), e.clientX, e.clientY);
+      const p = toFraction(contentRect(el.getBoundingClientRect(), aspect), e.clientX, e.clientY);
       const q = pending.current;
       q.dx += e.deltaX; q.dy += e.deltaY; q.fx = p.fx; q.fy = p.fy;
       if (!q.t) q.t = setTimeout(() => { const { dx, dy, fx, fy } = pending.current; pending.current = { dx: 0, dy: 0, fx, fy, t: 0 }; browser.send({ type: "wheel", fx, fy, dx, dy }); }, 40);
@@ -97,9 +101,10 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
   const deviceOptions = presets.map((p) => ({ value: p.id, label: `${p.label} ${p.width}×${p.height}` }));
 
   return (
-    <Card className={cn("flex min-w-0 flex-col overflow-hidden", full && "rounded-none")} data-testid="browser-pane">
+    <Card className={cn("flex min-w-0 flex-col overflow-hidden", full ? "h-screen rounded-none" : "h-[calc(100vh-150px)] min-h-[480px]")} data-testid="browser-pane">
       {/* ---- Chrome-style: a tab, the address row, then a thin device bar like the device mode in Chrome's own tools */}
       <div className="flex items-end gap-2 bg-hover px-2 pt-1.5" data-testid="browser-tabs">
+        {onToggleSetup && <Button size="sm" variant="ghost" className="mb-1 hidden lg:inline-flex" onClick={onToggleSetup} aria-expanded={!setupHidden} data-testid="toggle-setup" title={setupHidden ? "Show set-up" : "Hide set-up"}>{setupHidden ? <PanelLeftOpen /> : <PanelLeftClose />}<span className="sr-only">{setupHidden ? "Show set-up" : "Hide set-up"}</span></Button>}
         <div className="flex min-w-0 max-w-[260px] items-center gap-2 rounded-t-lg bg-surface px-3 py-1.5 text-xs">
           {loading ? <Loader2 className="size-3.5 shrink-0 animate-spin text-muted motion-reduce:animate-none" aria-label="Loading" data-testid="loading" /> : <Lock className="size-3.5 shrink-0 text-muted" aria-hidden />}
           <span className="min-w-0 flex-1 truncate" data-testid="tab-title">{s?.title || (url ? new URL(url, "http://x").hostname : "New tab")}</span>
@@ -111,7 +116,7 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
         <Button size="sm" variant="ghost" aria-label="Forward" disabled={!usable || locked || !s?.canGoForward} onClick={() => void run(() => browser.command({ type: "forward" }))}><ArrowRight /></Button>
         <Button size="sm" variant="ghost" aria-label="Refresh" disabled={!usable || locked} onClick={() => void run(() => browser.command({ type: "reload" }))}><RotateCw /></Button>
         <form className="flex min-w-[160px] flex-1 items-center gap-2 rounded-full bg-hover px-3" onSubmit={go}>
-          <input aria-label="Address" value={address} disabled={!usable || locked} onFocus={(e) => { setEditing(true); e.currentTarget.select(); }} onBlur={() => setEditing(false)} onChange={(e) => setAddress(e.target.value)} placeholder="Search or enter a web address" spellCheck={false}
+          <input aria-label="Address" value={address} disabled={locked || (connection === "lost" && Boolean(browser.token))} onFocus={(e) => { setEditing(true); e.currentTarget.select(); }} onBlur={() => setEditing(false)} onChange={(e) => setAddress(e.target.value)} placeholder="Search or enter a web address" spellCheck={false}
             className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-text outline-none placeholder:text-muted disabled:opacity-70" />
         </form>
         <Button size="sm" variant="ghost" aria-label="Capture screenshot" title="Capture screenshot" disabled={!usable} onClick={capture}><Camera /></Button>
@@ -121,7 +126,7 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
       <div className="flex items-center gap-2 border-b border-line bg-side px-2 py-1 text-xs text-text-2" data-testid="device-bar" title="Emulated in Chromium on this PC: screen size, pixel density, touch and user agent. It is not a physical phone or Safari's engine.">
         <Select aria-label="Screen size" className="w-[170px]" value={s?.device ?? "desktop"} disabled={!usable || locked} onChange={(e) => void run(() => browser.command({ type: "device", device: e.target.value }))} options={deviceOptions} />
         <Select aria-label="Zoom" className="w-[80px]" value={zoom} onChange={(e) => setZoom(e.target.value)} options={ZOOMS} />
-        <span className="ml-auto hidden text-muted sm:inline">Emulated device</span>
+        <span className="ml-auto hidden text-muted sm:inline" data-testid="focus-hint">{focused && canType ? "Typing goes to the page" : canType ? "Click the page, then type" : "Emulated device"}</span>
       </div>
 
       {/* ---- banners */}
@@ -144,11 +149,13 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
       )}
 
       {/* ---- the page */}
-      <div ref={shell} tabIndex={0} role="application" aria-label="Live browser preview" onKeyDown={onKeyDown} onPaste={onPaste}
-        className={cn("relative flex min-h-[300px] items-start justify-center overflow-auto bg-side outline-none focus-visible:ring-2 focus-visible:ring-accent/40", full ? "min-h-0 flex-1" : "max-h-[72vh]")} data-testid="viewport">
+      <div ref={shell} tabIndex={0} role="application" aria-label="Live browser preview" onKeyDown={onKeyDown} onPaste={onPaste} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        className={cn("relative flex min-h-0 flex-1 justify-center bg-side outline-none focus-visible:ring-2 focus-visible:ring-accent/40", fitted ? "items-center overflow-hidden p-2" : "items-start overflow-auto")} data-testid="viewport">
         {frame && s?.status !== "closed" ? (
+          <div className={cn("shrink-0", fitted && "h-full")} style={fitted && s ? { aspectRatio: `${s.viewport.width} / ${s.viewport.height}`, maxWidth: "100%" } : undefined} data-testid="fit-box">
           <img ref={img} src={frame} alt={s?.title ? `Live preview of ${s.title}` : "Live preview of the site"} draggable={false} onClick={onClick} onContextMenu={onContext}
-            className={cn("block h-auto select-none bg-white", s && s.device !== "desktop" && s.device !== "laptop" && "my-3 shadow-md ring-1 ring-line", canType ? "cursor-pointer" : "cursor-default", !fitted && "max-w-none")} style={{ width, maxWidth: fitted && s ? s.viewport.width : undefined }} data-testid="picture" />
+            className={cn("block select-none bg-white", fitted ? "h-full w-full object-contain" : "h-auto max-w-none", s && s.device !== "desktop" && s.device !== "laptop" && "shadow-md ring-1 ring-line", canType ? "cursor-pointer" : "cursor-default")} style={fitted ? undefined : { width }} data-testid="picture" />
+          </div>
         ) : showMessage ? <Placeholder {...message} busy={message.tone === "blue"} /> : (
           <Placeholder tone="blue" title="Loading the page…" detail={url ? `Waiting for ${url}` : "Waiting for the first picture."} busy />
         )}
@@ -215,9 +222,9 @@ export function InspectPanel({ browser, run, campaignId, device }: { browser: Br
   const stepCount = run ? run.steps.length : 0;
 
   return (
-    <Card className="flex max-h-[760px] min-h-[260px] min-w-0 flex-col overflow-hidden" data-testid="inspect">
+    <Card className="flex h-[calc(100vh-150px)] min-h-[480px] min-w-0 flex-col overflow-hidden" data-testid="inspect">
       <Tabs value={tab} onChange={setTab} className="px-2"
-        tabs={[{ value: "errors", label: "Errors", count: problems.length }, { value: "console", label: "Console", count: browser.consoleLog.length }, { value: "network", label: "Network", count: browser.network.length }, { value: "steps", label: "Steps", count: stepCount }, { value: "findings", label: "Findings", count: runFindings.length }]} />
+        tabs={[{ value: "errors", label: "Errors", count: problems.length || undefined }, { value: "console", label: "Console", count: browser.consoleLog.length || undefined }, { value: "network", label: "Network", count: browser.network.length || undefined }, { value: "steps", label: "Steps", count: stepCount || undefined }, { value: "findings", label: "Findings", count: runFindings.length || undefined }]} />
 
       {tab === "errors" && (
         <div className="flex min-h-0 flex-1 flex-col">

@@ -1,12 +1,12 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ExternalLink, PanelLeftClose, PanelLeftOpen, ArrowUp, CheckCircle2, ChevronRight, Circle, Clock, Download, Loader2, Lock, MonitorPlay, Play, Plus, RotateCcw, Save, Send, Square, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ExternalLink, ArrowUp, CheckCircle2, ChevronRight, Circle, Clock, Download, Loader2, Lock, MonitorPlay, Play, Plus, RotateCcw, Save, Send, Square, Trash2, XCircle } from "lucide-react";
 import { Button, Card, Checkbox, Dialog, DialogContent, Field, Input, Select, Tabs, Textarea } from "@/components/ui";
 import { PageHeader, Pill, StatusDot } from "@/components/common";
 import { useToast } from "@/components/toast";
 import { useAction } from "@/hooks/useAction";
 import { qk, useCampaigns, useConnectorStatus, useSettings } from "@/hooks/queries";
-import { DEVICE_LABEL } from "@/lib/devices";
+import { DEVICE_LABEL, PICKABLE_DEVICES } from "@/lib/devices";
 import { SEVERITY_LABEL, SEVERITY_TONE, type Severity } from "@/lib/labels";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import { browserService, connectorService, liveTestService, type AutoResult, type BrowserPreset, type LiveTestState, type LiveTestStep } from "@/services/connector";
@@ -22,8 +22,8 @@ import { useBrowserSession } from "./useBrowserSession";
 import { ACTIONS, META, STATUS_LABEL, STATUS_TONE, autoRequest, bySeverity, fromScenario, logText, looksLikeUrl, loginProblem, needsValue, newStep, placeholdersOf, problem, resultLine, stepSentence, toRequest, toScenario, type Credentials, type EditStep, type Inputs } from "./model";
 
 type Run = Exclude<LiveTestState, { status: "idle" }>;
-const DEVICES = Object.entries(DEVICE_LABEL).filter(([id]) => id !== "mobile").map(([value, label]) => ({ value, label }));
-const DEVICE_NAME: Record<string, string> = { desktop: "Desktop", laptop: "Laptop", tablet: "iPad", iphone: "iPhone", android: "Android" };
+const DEVICES = PICKABLE_DEVICES.map(([value, label]) => ({ value, label }));
+const DEVICE_NAME: Record<string, string> = { ...DEVICE_LABEL, desktop: "Desktop", laptop: "Laptop", tablet: "iPad", iphone: "iPhone 15", android: "Android", pixel: "Pixel 7", galaxy: "Galaxy S8" };
 const SECRETISH = /pass|otp|pin|code|secret|token/i;
 const RESULT_TEXT = { green: "text-st-green", red: "text-st-red", amber: "text-st-amber", blue: "text-st-blue", gray: "text-text-2" } as const;
 const LOGIN_LABEL: Record<string, string> = { ok: "Signed in", registered: "Registered", none: "No login used", failed: "Sign-in failed", needs: "Needs details", blocked: "CAPTCHA" };
@@ -170,7 +170,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
 
   const [url, setUrl] = React.useState("");
   const [creds, setCreds] = React.useState<Credentials>({ username: "", password: "", extra: "" });
-  const [device, setDevice] = React.useState("desktop");
+  const [device, setDevice] = React.useState("iphone-15");
   const [steps, setSteps] = React.useState<EditStep[]>([{ ...newStep("click"), action: "expect_text" }]);
   const [inputs, setInputs] = React.useState<Inputs>({});
   const [pickedCampaign, setPicked] = React.useState("");
@@ -183,7 +183,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
   const [answer, setAnswer] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [pick, setPick] = React.useState<"browser" | "run" | null>(null);
-  const [previewDevice, setPreviewDevice] = React.useState("desktop");
+  const [previewDevice, setPreviewDevice] = React.useState("iphone-15");
   const [embedNote, setEmbedNote] = React.useState<string | null>(null);
   const browser = useBrowserSession();
   const { isAdmin, me } = useAuth();
@@ -450,7 +450,6 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
 
         {/* ------------------------------------------------ preview */}
         <div className="min-w-0 space-y-4" data-testid="preview">
-          <Button size="sm" variant="ghost" className="hidden lg:inline-flex" onClick={toggleSetup} aria-expanded={!collapsed} data-testid="toggle-setup">{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}{collapsed ? "Show set-up" : "Hide set-up"}</Button>
           {browser.token && run && (
             <div className="flex gap-1.5" role="group" aria-label="What to show">
               <Button size="sm" variant={view === "browser" ? "primary" : "secondary"} onClick={() => setPick("browser")} data-testid="show-browser"><MonitorPlay />Preview</Button>
@@ -459,7 +458,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
           )}
           {view === "browser" && (
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" data-testid="browser-view">
-              <BrowserPane browser={browser} presets={presetList} onAllowHost={isAdmin && me?.workspaceId ? allowHost : undefined} offline={!online && !browser.token} embedNote={embedNote} testing={active && isAuto} onCaptured={(m) => toast.success(m)} />
+              <BrowserPane browser={browser} presets={presetList} setupHidden={collapsed} onToggleSetup={toggleSetup} onOpenAddress={(u) => { setUrl(u); void openPreview(u); }} onAllowHost={isAdmin && me?.workspaceId ? allowHost : undefined} offline={!online && !browser.token} embedNote={embedNote} testing={active && isAuto} onCaptured={(m) => toast.success(m)} />
               <InspectPanel browser={browser} run={run} campaignId={campaignId} device={presetList.find((p) => p.id === (browser.state?.device ?? previewDevice))?.label ?? previewDevice} />
             </div>
           )}
@@ -467,8 +466,8 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <Card className="overflow-hidden">
             {(run || starting) && <BrowserBar url={run?.url ?? url} where={whereLabel} busy={active || starting} />}
-            <div className="flex min-h-[260px] items-center justify-center bg-side">
-              {picture ? <img src={picture} alt={viewing != null ? `Picture after step ${viewing}` : "Live picture of the test browser"} className="block max-h-[60vh] w-full object-contain" draggable={false} data-testid="picture" />
+            <div className="flex h-[calc(100vh-360px)] min-h-[360px] items-center justify-center bg-side p-2">
+              {picture ? <img src={picture} alt={viewing != null ? `Picture after step ${viewing}` : "Live picture of the test browser"} className="block h-full w-full object-contain" draggable={false} data-testid="picture" />
                 : active || starting ? (
                   <div className="flex w-full flex-col items-center gap-3 px-4 py-16 text-sm text-text-2" data-testid="opening">
                     <div className="w-2/3 max-w-sm space-y-2" aria-hidden><div className="h-3 animate-pulse rounded bg-hover motion-reduce:animate-none" /><div className="h-3 w-4/5 animate-pulse rounded bg-hover motion-reduce:animate-none" /><div className="h-24 animate-pulse rounded bg-hover motion-reduce:animate-none" /></div>

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "@/components/toast";
 import type { BrowserEvent, BrowserState } from "@/services/connector";
 import { BrowserPane, InspectPanel } from "./BrowserWorkspace";
-import { PRESET_FALLBACK, filterEvents, keyInput, normalizeAddress, stateMessage, toFraction } from "./browserModel";
+import { PRESET_FALLBACK, contentRect, filterEvents, keyInput, normalizeAddress, stateMessage, toFraction } from "./browserModel";
 import type { Browser } from "./useBrowserSession";
 
 const svc = vi.hoisted(() => ({ create: vi.fn() }));
@@ -27,6 +27,19 @@ describe("browserModel", () => {
     const r = { left: 100, top: 50, width: 400, height: 200 };
     expect(toFraction(r, 300, 150)).toEqual({ fx: 0.5, fy: 0.5 });
     expect(toFraction(r, 0, 9999)).toEqual({ fx: 0, fy: 1 });
+  });
+  it("finds the page inside a letterboxed box, so a click never lands on the bars", () => {
+    const wide = contentRect({ left: 0, top: 0, width: 800, height: 400 }, 0.5); // a phone-shaped page in a wide box
+    expect(wide).toEqual({ left: 300, top: 0, width: 200, height: 400 });
+    const tall = contentRect({ left: 10, top: 10, width: 200, height: 600 }, 1); // a square page in a tall box
+    expect(tall).toEqual({ left: 10, top: 210, width: 200, height: 200 });
+    expect(contentRect({ left: 0, top: 0, width: 100, height: 50 }, 2)).toEqual({ left: 0, top: 0, width: 100, height: 50 });
+  });
+  it("offers phones and tablets only, iOS and Android, from the narrowest to the widest", () => {
+    expect(PRESET_FALLBACK.every((p) => p.touch)).toBe(true);
+    expect(PRESET_FALLBACK.some((p) => /desktop|laptop/i.test(p.id))).toBe(false);
+    expect(PRESET_FALLBACK.some((p) => /iphone/.test(p.id)) && PRESET_FALLBACK.some((p) => /pixel|galaxy/.test(p.id)) && PRESET_FALLBACK.some((p) => /ipad|tab/.test(p.id))).toBe(true);
+    expect(Math.min(...PRESET_FALLBACK.map((p) => p.width))).toBe(320);
   });
   it("turns keys into input and ignores shortcuts", () => {
     expect(keyInput({ key: "Enter" })).toEqual({ type: "key", key: "Enter" });
@@ -89,12 +102,12 @@ describe("BrowserPane", () => {
     const addr = screen.getByLabelText("Address");
     fireEvent.change(addr, { target: { value: "other.example/page" } });
     fireEvent.submit(addr.closest("form")!);
-    fireEvent.change(screen.getByLabelText("Screen size"), { target: { value: "iphone" } });
+    fireEvent.change(screen.getByLabelText("Screen size"), { target: { value: "pixel-7" } });
     await waitFor(() => expect(b.command).toHaveBeenCalledTimes(4));
     expect(b.command).toHaveBeenCalledWith({ type: "back" });
     expect(b.command).toHaveBeenCalledWith({ type: "reload" });
     expect(b.command).toHaveBeenCalledWith({ type: "navigate", url: "https://other.example/page" });
-    expect(b.command).toHaveBeenCalledWith({ type: "device", device: "iphone" });
+    expect(b.command).toHaveBeenCalledWith({ type: "device", device: "pixel-7" });
   });
 
   it("refuses an address that is not http(s) before it reaches the connector", () => {
@@ -156,6 +169,23 @@ describe("BrowserPane", () => {
     pane(fake({ token: null, state: null, frame: null }), { offline: true });
     expect(screen.getByTestId("pane-message")).toHaveTextContent("The connector is not running");
   });
+  it("lets you type an address into the bar before any preview is open, and opens it", () => {
+    const onOpenAddress = vi.fn();
+    pane(fake({ token: null, state: null, frame: null }), { onOpenAddress });
+    const addr = screen.getByLabelText("Address");
+    expect(addr).not.toBeDisabled();
+    fireEvent.change(addr, { target: { value: "staging.example.com/play" } });
+    fireEvent.submit(addr.closest("form")!);
+    expect(onOpenAddress).toHaveBeenCalledWith("https://staging.example.com/play");
+  });
+
+  it("says where the keyboard goes once the page is clicked", () => {
+    pane(fake());
+    expect(screen.getByTestId("focus-hint")).toHaveTextContent("Click the page, then type");
+    fireEvent.focus(screen.getByTestId("viewport"));
+    expect(screen.getByTestId("focus-hint")).toHaveTextContent("Typing goes to the page");
+  });
+
   it("explains the empty state before any URL", () => {
     pane(fake({ token: null, state: null, frame: null }));
     expect(screen.getByTestId("pane-message")).toHaveTextContent("Enter a staging URL");

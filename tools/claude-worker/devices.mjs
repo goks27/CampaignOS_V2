@@ -15,15 +15,29 @@ const preset = (name) => {
   return strip(d);
 };
 
-/** family: how the report groups them. touch: tap-target rules apply. */
+/**
+ * Campaigns are played on phones and tablets, so these are the devices: the iPhone and Android sizes people actually carry (from the
+ * narrowest, 320px, to the widest, 480px) and the common tablets. There is no desktop here on purpose. family: how the report groups
+ * them. The first one finds the pages and signs in or registers; the others open the same pages.
+ */
+const phone = (id, label, family, name) => ({ id, label, family, touch: true, opts: preset(name) });
 export const DEVICES = [
-  { id: "desktop", label: "Desktop 1440", family: "Desktop", touch: false, opts: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
-  { id: "laptop", label: "Laptop 1280", family: "Desktop", touch: false, opts: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 } },
-  { id: "iphone-15", label: "iPhone 15", family: "iPhone", touch: true, opts: preset("iPhone 15") },
-  { id: "iphone-se", label: "iPhone SE (small screen)", family: "iPhone", touch: true, opts: preset("iPhone SE") },
-  { id: "pixel-7", label: "Pixel 7 (Android)", family: "Android", touch: true, opts: preset("Pixel 7") },
-  { id: "galaxy-s9", label: "Galaxy S9+ (Android)", family: "Android", touch: true, opts: preset("Galaxy S9+") },
-  { id: "ipad", label: "iPad", family: "iPad", touch: true, opts: preset("iPad (gen 7)") },
+  phone("iphone-15", "iPhone 15", "iPhone", "iPhone 15"),
+  phone("iphone-se", "iPhone SE (small screen)", "iPhone", "iPhone SE"),
+  phone("iphone-8", "iPhone 8", "iPhone", "iPhone 8"),
+  phone("iphone-13", "iPhone 13", "iPhone", "iPhone 13"),
+  phone("iphone-16-pro-max", "iPhone 16 Pro Max (large)", "iPhone", "iPhone 16 Pro Max"),
+  phone("pixel-7", "Pixel 7 (Android)", "Android", "Pixel 7"),
+  phone("pixel-5", "Pixel 5 (Android)", "Android", "Pixel 5"),
+  phone("pixel-8-pro", "Pixel 8 Pro (Android)", "Android", "Pixel 8 Pro"),
+  phone("galaxy-s9", "Galaxy S9+ (Android, narrow)", "Android", "Galaxy S9+"),
+  phone("galaxy-s8", "Galaxy S8 (Android)", "Android", "Galaxy S8"),
+  phone("galaxy-a55", "Galaxy A55 (Android, wide)", "Android", "Galaxy A55"),
+  phone("ipad", "iPad", "iPad", "iPad (gen 7)"),
+  phone("ipad-mini", "iPad Mini", "iPad", "iPad Mini"),
+  phone("ipad-pro-11", "iPad Pro 11", "iPad", "iPad Pro 11"),
+  phone("galaxy-tab-s9", "Galaxy Tab S9 (Android tablet)", "Android tablet", "Galaxy Tab S9"),
+  phone("galaxy-tab-s4", "Galaxy Tab S4 (Android tablet)", "Android tablet", "Galaxy Tab S4"),
 ];
 
 export const DEVICE_BY_ID = new Map(DEVICES.map((d) => [d.id, d]));
@@ -42,15 +56,14 @@ export function pickDevices(ids) {
 export const isSmallScreen = (d) => (d.opts.viewport?.width ?? 1440) < 800;
 
 /**
- * The sizes offered in the interactive preview's toolbar. Each is a viewport (plus touch and the matching user agent for the phones and the
- * tablet), emulated in Chromium: not a physical device. Switching between two desktop-class presets only resizes the page.
+ * The sizes offered in the interactive preview: the same phones and tablets as the all-device test, emulated in Chromium (screen size,
+ * pixel density, touch and user agent), not physical devices. Older sessions used other ids (and a desktop), so those still resolve.
  */
-const sized = (name, w, h) => ({ ...preset(name), viewport: { width: w, height: h }, screen: { width: w, height: h } });
-export const SESSION_PRESETS = [
+export const SESSION_PRESETS = DEVICES.map((x) => ({ id: x.id, label: x.label, width: x.opts.viewport.width, height: x.opts.viewport.height, touch: true, family: x.family, opts: x.opts }));
+const LEGACY = [
   { id: "desktop", label: "Desktop", width: 1440, height: 900, touch: false, opts: { viewport: { width: 1440, height: 900 }, screen: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
   { id: "laptop", label: "Laptop", width: 1366, height: 768, touch: false, opts: { viewport: { width: 1366, height: 768 }, screen: { width: 1366, height: 768 }, deviceScaleFactor: 1 } },
-  { id: "tablet", label: "iPad", width: 768, height: 1024, touch: true, opts: sized("iPad (gen 7)", 768, 1024) },
-  { id: "iphone", label: "iPhone", width: 390, height: 844, touch: true, opts: sized("iPhone 15", 390, 844) },
-  { id: "android", label: "Android", width: 360, height: 800, touch: true, opts: sized("Pixel 7", 360, 800) },
 ];
-export const PRESET_BY_ID = new Map(SESSION_PRESETS.map((p) => [p.id, p]));
+const ALIAS = { iphone: "iphone-15", android: "pixel-7", pixel: "pixel-7", galaxy: "galaxy-s8", tablet: "ipad" };
+export const PRESET_BY_ID = new Map([...SESSION_PRESETS, ...LEGACY].map((p) => [p.id, p]));
+for (const [from, to] of Object.entries(ALIAS)) PRESET_BY_ID.set(from, PRESET_BY_ID.get(to));

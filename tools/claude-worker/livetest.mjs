@@ -19,7 +19,7 @@ import { signIn, parseExtras } from "./login.mjs";
 import { NetGuard } from "./netguard.mjs";
 import { locateTarget } from "./locate.mjs";
 import { live as sharedLive } from "./live.mjs";
-import { DEVICE_BY_ID } from "./devices.mjs";
+import { DEVICE_BY_ID, PRESET_BY_ID } from "./devices.mjs";
 
 export class BadRequest extends Error {}
 
@@ -67,7 +67,7 @@ export function parseSpec(body) {
   let url;
   try { url = new URL(str(body?.url, 2000)); } catch { throw new BadRequest("Enter the staging URL, starting with https://"); }
   if (!["http:", "https:"].includes(url.protocol)) throw new BadRequest("The URL must start with http:// or https://");
-  const device = DEVICE_BY_ID.has(body?.device) ? body.device : "desktop";
+  const device = DEVICE_BY_ID.has(body?.device) ? body.device : "iphone-15";
   const raw = Array.isArray(body?.steps) ? body.steps : [];
   if (raw.length > MAX_STEPS) throw new BadRequest(`That is ${raw.length} steps; the limit is ${MAX_STEPS}.`);
   const steps = raw.map((s, i) => {
@@ -144,7 +144,7 @@ export function createLiveTest({ live = sharedLive, sessions = sharedSessions, o
         let st;
         try { st = sessions.state(spec.sessionToken); } catch { throw new BadRequest("The preview is no longer open. Open it again, then run the steps."); }
         if (st.locked) throw new BadRequest("A test is already running in that browser.");
-        spec.device = `${sessions.presets().find((p) => p.id === st.device)?.label ?? st.device} (this browser)`;
+        spec.device = `${sessions.presets().find((p) => p.id === st.device)?.label ?? PRESET_BY_ID.get(st.device)?.label ?? st.device} (this browser)`;
       }
       const id = `lt-${now().toString(36)}`;
       run = { id, ...spec, status: "running", startedAt: now(), console: [], failed: [], prompt: null, error: null,

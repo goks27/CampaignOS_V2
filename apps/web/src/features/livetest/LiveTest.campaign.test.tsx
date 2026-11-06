@@ -96,7 +96,7 @@ describe("the automatic run", () => {
     await waitFor(() => expect(url()).toHaveValue("https://staging.gold.example/register"));
     pasteInto(url(), "https://thedigitalapps.com/bector-food");
     await waitFor(() => expect(svc.browser.open).toHaveBeenCalledTimes(1));
-    expect(svc.browser.open.mock.calls[0]![0]).toMatchObject({ url: "https://thedigitalapps.com/bector-food", device: "desktop", campaign: { id: "c1", name: "Gold Drop" } });
+    expect(svc.browser.open.mock.calls[0]![0]).toMatchObject({ url: "https://thedigitalapps.com/bector-food", device: "iphone-15", campaign: { id: "c1", name: "Gold Drop" } });
     expect(svc.browser.open.mock.calls[0]![0].allowed).toEqual(expect.arrayContaining(["settings.example", "cdn.gold.example"]));
     expect(svc.live.start).not.toHaveBeenCalled();
   });

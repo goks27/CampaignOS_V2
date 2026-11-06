@@ -54,7 +54,7 @@ test("opening returns a token at once; the page, its title and the first picture
   const token = r.json.token;
   const st = await until(async () => { const s = (await call("GET", `/browser/log?token=${token}`)).json.state; return s.status === "ready" && !s.loading && s.title ? s : null; });
   assert.equal(st.title, "/");
-  assert.deepEqual(st.viewport, { width: 390, height: 844 });
+  assert.deepEqual(st.viewport, { width: 393, height: 659 });
   assert.equal(st.campaignName, "Gold Drop");
   assert.equal((await call("POST", "/browser/command", { token, type: "close" })).status, 200);
 });
@@ -91,8 +91,8 @@ test("commands: navigate, back, forward, reload, size, capture, close", { skip }
   r = await cmd("back"); assert.equal(r.json.url, base + "/");
   r = await cmd("forward"); assert.equal(r.json.url, base + "/next");
   r = await cmd("reload"); assert.equal(r.json.status, "ready");
-  r = await cmd("device", { device: "android" });
-  assert.deepEqual(r.json.viewport, { width: 360, height: 800 });
+  r = await cmd("device", { device: "pixel-7" });
+  assert.deepEqual(r.json.viewport, { width: 412, height: 839 });
   assert.equal((await cmd("device", { device: "fridge" })).status, 400);
   const cap = await cmd("capture", { note: "Looks off" });
   assert.equal(cap.json.category, "capture");
@@ -149,7 +149,7 @@ test("a site that blocks embedding is reported as such, and previews anyway", { 
   const token = await open("/frameblock");
   assert.equal((await call("GET", `/browser/log?token=${token}`)).json.state.status, "ready");
   await call("POST", "/browser/command", { token, type: "close" });
-  assert.equal((await call("GET", "/browser/presets")).json.length, 5);
+  assert.equal((await call("GET", "/browser/presets")).json.length, 16);
 });
 
 test("a scripted test runs in the SAME browser, locks it while it runs, and a failure shows up as an event", { skip }, async () => {
@@ -166,7 +166,7 @@ test("a scripted test runs in the SAME browser, locks it while it runs, and a fa
   await until(() => !liveTest.active(), 60_000);
   const run = liveTest.state();
   assert.deepEqual(run.steps.map((s) => s.status), ["passed", "passed", "passed", "passed", "failed"]);
-  assert.match(run.deviceLabel, /Desktop \(this browser\)/);
+  assert.match(run.deviceLabel, /\(this browser\)/);
   assert.ok(posts.some((p) => p.who === "Asha"), "the form was really submitted in the page the person was watching");
   const after = (await call("GET", `/browser/log?token=${token}`)).json;
   assert.equal(after.state.locked, false, "the browser is the person's again");

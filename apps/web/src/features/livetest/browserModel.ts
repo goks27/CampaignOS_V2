@@ -83,9 +83,28 @@ export function taskFromEvent(e: BrowserEvent, build: { device: string }) {
 
 /** Used when the connector cannot be asked. The same sizes as tools/claude-worker/devices.mjs. */
 export const PRESET_FALLBACK: BrowserPreset[] = [
-  { id: "desktop", label: "Desktop", width: 1440, height: 900, touch: false },
-  { id: "laptop", label: "Laptop", width: 1366, height: 768, touch: false },
-  { id: "tablet", label: "iPad", width: 768, height: 1024, touch: true },
-  { id: "iphone", label: "iPhone", width: 390, height: 844, touch: true },
-  { id: "android", label: "Android", width: 360, height: 800, touch: true },
+  { id: "iphone-15", label: "iPhone 15", width: 393, height: 659, touch: true },
+  { id: "iphone-se", label: "iPhone SE (small screen)", width: 320, height: 568, touch: true },
+  { id: "iphone-8", label: "iPhone 8", width: 375, height: 667, touch: true },
+  { id: "iphone-13", label: "iPhone 13", width: 390, height: 664, touch: true },
+  { id: "iphone-16-pro-max", label: "iPhone 16 Pro Max (large)", width: 440, height: 763, touch: true },
+  { id: "pixel-7", label: "Pixel 7 (Android)", width: 412, height: 839, touch: true },
+  { id: "pixel-5", label: "Pixel 5 (Android)", width: 393, height: 727, touch: true },
+  { id: "pixel-8-pro", label: "Pixel 8 Pro (Android)", width: 448, height: 921, touch: true },
+  { id: "galaxy-s9", label: "Galaxy S9+ (Android, narrow)", width: 320, height: 658, touch: true },
+  { id: "galaxy-s8", label: "Galaxy S8 (Android)", width: 360, height: 740, touch: true },
+  { id: "galaxy-a55", label: "Galaxy A55 (Android, wide)", width: 480, height: 1040, touch: true },
+  { id: "ipad", label: "iPad", width: 810, height: 1080, touch: true },
+  { id: "ipad-mini", label: "iPad Mini", width: 768, height: 1024, touch: true },
+  { id: "ipad-pro-11", label: "iPad Pro 11", width: 834, height: 1194, touch: true },
+  { id: "galaxy-tab-s9", label: "Galaxy Tab S9 (Android tablet)", width: 640, height: 1024, touch: true },
+  { id: "galaxy-tab-s4", label: "Galaxy Tab S4 (Android tablet)", width: 712, height: 1138, touch: true },
 ];
+
+/** Where the page itself is inside a box that shows it letterboxed (object-fit: contain), so clicks land on the page and not on the bars. */
+export function contentRect(box: { left: number; top: number; width: number; height: number }, aspect: number) {
+  if (!box.width || !box.height || !aspect) return box;
+  if (box.width / box.height > aspect) { const w = box.height * aspect; return { left: box.left + (box.width - w) / 2, top: box.top, width: w, height: box.height }; }
+  const h = box.width / aspect;
+  return { left: box.left, top: box.top + (box.height - h) / 2, width: box.width, height: h };
+}
