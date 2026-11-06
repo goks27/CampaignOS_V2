@@ -15,9 +15,10 @@ import { tileForModel } from "./images.mjs";
 import { normaliseBox } from "./runner.mjs";
 import { PREAMBLE } from "./staging.mjs";
 import { live } from "./live.mjs";
-import { settle } from "./browser.mjs";
+import { settle, startFrames } from "./browser.mjs";
 import { pickDevices, isSmallScreen } from "./devices.mjs";
-import { signIn } from "./login.mjs";
+import { signIn, parseExtras } from "./login.mjs";
+import { completeForms } from "./flow.mjs";
 
 const DEFAULT_MAX_PAGES = 10;
 const MAX_LINK_CHECKS = 40;
@@ -223,11 +224,12 @@ const outOfTime = (e) => e instanceof JobFailed && /ran out of time/.test(e.mess
 
 /** The login result as a finding a person can act on, or nothing when it simply worked or there was no login. */
 export function loginFinding(login, startUrl) {
-  if (!login || ["ok", "none"].includes(login.status)) return null;
+  if (!login || ["ok", "none", "registered"].includes(login.status)) return null;
+  const reg = login.kind === "registration";
   const base = { confidence: "high", requirement_id: null, affected_page: startUrl, evidence_note: "Recorded while signing in with the details stored on the environment. The values are never shown or saved here." };
-  if (login.status === "failed") return { ...base, title: "Sign-in did not work with the stored details", severity: "high", description: login.message, observed: login.message, expected: "The stored test login signs in.", suggested_correction: "Check the username and password stored on the test environment, and that the test account is active on staging.", reproducibility: "Happened when the check tried to sign in" };
-  if (login.status === "needs") return { ...base, title: `The login asks for details that are not stored: ${login.needs.join(", ")}`, severity: "informational", description: login.message, observed: login.message, expected: "", suggested_correction: `Open the test environment, choose Credentials, and add ${login.needs.map((n) => `“${n} = value”`).join(" and ")} under Extra. Then run the check again to test the pages behind the login.`, reproducibility: "The pages behind the login were not checked" };
-  return { ...base, title: "A CAPTCHA blocks the sign-in", severity: "informational", description: login.message, observed: login.message, expected: "", suggested_correction: "Turn the CAPTCHA off on staging for the test account, or test the pages behind the login by hand.", reproducibility: "The pages behind the login were not checked" };
+  if (login.status === "failed") return { ...base, title: reg ? "The registration form did not go through" : "Sign-in did not work with the stored details", severity: "high", description: login.message, observed: login.message, expected: reg ? "The registration form accepts the details and the campaign opens." : "The stored test login signs in.", suggested_correction: reg ? "Check the mobile number and other details you gave are valid on staging, and that the form works by hand." : "Check the username and password stored on the test environment, and that the test account is active on staging.", reproducibility: reg ? "Happened when the check filled in the registration form" : "Happened when the check tried to sign in" };
+  if (login.status === "needs") return { ...base, title: `${reg ? "The page" : "The login"} asks for details that are not given: ${login.needs.join(", ")}`, severity: "informational", description: login.message, observed: login.message, expected: "", suggested_correction: `Open the test environment, choose Credentials, and add ${login.needs.map((n) => `“${n} = value”`).join(" and ")} under Extra. Then run the check again to test the pages behind the login.`, reproducibility: "The pages behind the login were not checked" };
+  return { ...base, title: reg ? "A CAPTCHA or a payment form blocks the registration" : "A CAPTCHA blocks the sign-in", severity: "informational", description: login.message, observed: login.message, expected: "", suggested_correction: "Turn the CAPTCHA off on staging for the test account, or test the pages behind the login by hand.", reproducibility: "The pages behind the login were not checked" };
 }
 
 /**
@@ -250,19 +252,62 @@ export async function siteCheck(run, browser) {
   }
   const pages = []; // { url, cap, key } from the first device
   const entries = []; // deterministic issues with where (page, device) they were seen
+  // Every problem is also sent to `run.onPage` the moment it is found, so a live run can show errors as the test goes.
+  entries.push = (...items) => { for (const e of items) run.onPage?.({ device: e.device, url: e.url, issue: e.issue }); return Array.prototype.push.apply(entries, items); };
   const allLinks = new Map(); // href -> [source pages]
   const report = new Map(devices.map((d) => [d.id, { id: d.id, label: d.label, family: d.family, engine: "Chromium (emulated)", pages_tested: 0, pages_failed: 0, login: "none" }]));
   const deviceCaps = new Map(); // device id -> Map(url -> cap)
   const logins = new Map();
+  /** The per-device report so far: pages opened, the problems seen on each device, and whether the sign-in worked. Also sent to `run.onDevice` as each device finishes. */
+  const snapshot = () => {
+    const perDevice = new Map();
+    for (const e of entries) { const s = perDevice.get(e.device) ?? new Map(); s.set(e.issue.title, e.issue.severity); perDevice.set(e.device, s); }
+    return [...report.values()].map((r) => {
+      const mine = perDevice.get(r.label) ?? new Map();
+      const titles = [...mine.entries()].sort((x, y) => SEV_ORDER.indexOf(x[1]) - SEV_ORDER.indexOf(y[1]));
+      const claude = r.claude ?? [];
+      return { id: r.id, label: r.label, family: r.family, engine: r.engine, pages_tested: r.pages_tested, pages_failed: r.pages_failed, login: r.login,
+        ...(r.skipped ? { skipped: r.skipped } : {}), issues: titles.length + claude.length, top_issues: [...titles.map(([t]) => t), ...claude].slice(0, 8) };
+    });
+  };
   let captcha = 0, stoppedEarly = null;
 
   /** A browser context for one device, signed in if there are stored credentials. Returns { ctx, login }. */
+  // Most campaigns have no password: a landing page, a registration form (mobile number, name), an OTP, then the real pages. The first device
+  // fills that in with what a person gave (in advance, or typed when asked) and its session is then carried to every other device.
+  const extraFields = parseExtras(run.creds?.extra).fields;
+  const canRegister = !hasLogin && Boolean(run.ask || extraFields.length);
+  let sessionState = null;
   const open = async (dev) => {
-    const ctx = await browser.newContext(dev.id);
+    const ctx = await browser.newContext(dev.id, sessionState ? { storageState: sessionState } : {});
     let login = { status: "none", needs: [], message: "" };
+    if (canRegister && !sessionState && dev === devices[0]) {
+      run.step(`${dev.label}: looking for a registration form`);
+      const pg = await ctx.newPage();
+      const stopFrames = startFrames(pg, { everyMs: 500 });
+      live.where({ url: startUrl, device: dev.label });
+      try {
+        await pg.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+        try { await pg.waitForLoadState("networkidle", { timeout: 15_000 }); } catch { await pg.waitForTimeout(1500); }
+        await settle(pg);
+        const res = await completeForms(pg, { extras: extraFields, ask: run.ask ?? null, settle, pause: (on) => live.pause(on), step: run.step });
+        if (res.status === "done") { sessionState = await ctx.storageState(); login = { status: "registered", kind: "registration", needs: [], message: `Registered (${res.filled.join(", ")}).` }; }
+        else if (res.status !== "none" && res.status !== "skipped") login = { status: res.status, kind: "registration", needs: res.needs ?? [], message: res.message };
+      } catch (e) {
+        if (e instanceof JobFailed) throw e;
+        login = { status: "failed", kind: "registration", needs: [], message: `The registration form could not be completed: ${String(e.message).split("\n")[0].slice(0, 160)}` };
+      } finally { stopFrames(); await pg.close().catch(() => undefined); }
+      logins.set(dev.id, login);
+      report.get(dev.id).login = login.status;
+    } else if (sessionState) {
+      login = { status: "registered", needs: [], message: "Started from the registered session." };
+      report.get(dev.id).login = "registered";
+    }
     if (hasLogin) {
       run.step(`${dev.label}: signing in`);
       const pg = await ctx.newPage();
+      const stopFrames = startFrames(pg, { everyMs: 500 });
+      live.where({ url: startUrl, device: dev.label });
       try {
         await pg.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
         try { await pg.waitForLoadState("networkidle", { timeout: 15_000 }); } catch { await pg.waitForTimeout(1500); }
@@ -270,7 +315,7 @@ export async function siteCheck(run, browser) {
         login = await signIn(pg, run.creds, { settle, pause: (on) => live.pause(on) });
       } catch (e) {
         login = { status: "failed", needs: [], message: `Could not reach the login: ${String(e.message).split("\n")[0].slice(0, 160)}` };
-      } finally { await pg.close().catch(() => undefined); }
+      } finally { stopFrames(); await pg.close().catch(() => undefined); }
       logins.set(dev.id, login);
       report.get(dev.id).login = login.status;
     }
@@ -306,6 +351,7 @@ export async function siteCheck(run, browser) {
       queue.push(...pickCrawlLinks(cap.facts?.links, startUrl, seen));
     }
   } catch (e) { if (!outOfTime(e)) throw e; stoppedEarly = "ran out of time while opening pages"; } finally { await first.ctx.close().catch(() => undefined); }
+  run.onDevice?.(snapshot());
 
   // ---- 2. every other device opens the same pages
   for (const dev of devices.slice(1)) {
@@ -334,6 +380,7 @@ export async function siteCheck(run, browser) {
       if (outOfTime(e)) { stoppedEarly = "ran out of time while testing devices"; report.get(dev.id).skipped = "stopped part way: the check ran out of time"; }
       else throw e;
     } finally { await s?.ctx.close().catch(() => undefined); }
+    run.onDevice?.(snapshot());
   }
 
   // ---- 3. links that were not opened as pages
@@ -357,7 +404,7 @@ export async function siteCheck(run, browser) {
 
   // ---- 4. Claude looks at what a person would notice, on every device
   const claudeFindings = [];
-  const looked = stoppedEarly ? [] : pages.slice(0, MODEL_PAGES);
+  const looked = stoppedEarly || run.noModel ? [] : pages.slice(0, MODEL_PAGES); // a live run has no model to ask: the automatic checks are the result
   for (const [i, pg] of looked.entries()) {
     run.step(`Claude is reading page ${i + 1} of ${looked.length} on ${devices.length} devices`);
     const files = [];
@@ -439,16 +486,7 @@ Return {"findings": [...]}.`, CLAUDE_SCHEMA);
     }
   }
 
-  // The per-device report: for each device, how many pages it opened, the problems seen on it, and whether the login worked.
-  const perDevice = new Map();
-  for (const e of entries) { const s = perDevice.get(e.device) ?? new Map(); s.set(e.issue.title, e.issue.severity); perDevice.set(e.device, s); }
-  const devicesReport = [...report.values()].map((r) => {
-    const mine = perDevice.get(r.label) ?? new Map();
-    const titles = [...mine.entries()].sort((a, b) => SEV_ORDER.indexOf(a[1]) - SEV_ORDER.indexOf(b[1]));
-    const claude = r.claude ?? [];
-    return { id: r.id, label: r.label, family: r.family, engine: r.engine, pages_tested: r.pages_tested, pages_failed: r.pages_failed, login: r.login,
-      ...(r.skipped ? { skipped: r.skipped } : {}), issues: titles.length + claude.length, top_issues: [...titles.map(([t]) => t), ...claude].slice(0, 8) };
-  });
+  const devicesReport = snapshot();
   run.findings.push(...findings);
   const lg = logins.get(primary.id);
   run.siteNotes = { pages_checked: pages.length, devices_tested: devicesReport.filter((d) => d.pages_tested > 0).length, devices: devicesReport,

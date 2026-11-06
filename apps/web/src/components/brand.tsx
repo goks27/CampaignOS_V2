@@ -1,22 +1,22 @@
 import { cn } from "@/lib/utils";
 
-/** The Journ mark: two points and the line between them. A journey, drawn once. */
-export function JournMark({ size = 20, className, animate = false }: { size?: number; className?: string; animate?: boolean }) {
+/** The Journey mark: an open geometric frame (two corner brackets, a workspace) with a path moving through it to a point (direction, and what is possible). */
+export function JourneyMark({ size = 20, className, animate = false }: { size?: number; className?: string; animate?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={cn(animate && "mark-draw", className)}>
-      <path d="M10 22c0-7 12-3 12-12" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
-      <circle cx="10" cy="22" r="2.6" fill="currentColor" />
-      <circle cx="22" cy="10" r="2.6" fill="currentColor" />
+      <path d="M4 12V4h8M28 20v8h-8" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="mark-path" d="M4 22c6 0 6-6 12-6s6-6 12-6" stroke="currentColor" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      <circle cx="28" cy="10" r="2.4" fill="currentColor" />
     </svg>
   );
 }
 
-/** The wordmark: lowercase "journ" in the display serif, with the mark. */
+/** The wordmark: lowercase "journey" in the display serif, with the mark. */
 export function Wordmark({ size = 22, className, animate = false, markOnly = false }: { size?: number; className?: string; animate?: boolean; markOnly?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-text", className)} aria-label="Journ">
-      <JournMark size={markOnly ? size : Math.round(size * 0.8)} className="text-accent" animate={animate} />
-      {!markOnly && <span className="font-display leading-none tracking-tight" style={{ fontSize: size }}>journ</span>}
+    <span className={cn("inline-flex items-center gap-1.5 text-text", className)} aria-label="Journey">
+      <JourneyMark size={markOnly ? size : Math.round(size * 0.8)} className="text-accent" animate={animate} />
+      {!markOnly && <span className="font-display leading-none tracking-tight" style={{ fontSize: size }}>journey</span>}
     </span>
   );
 }

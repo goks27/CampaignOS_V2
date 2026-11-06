@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromScenario, isActive, logText, newStep, placeholdersOf, problem, toRequest, toScenario, type EditStep } from "./model";
+import { autoRequest, bySeverity, loginProblem, looksLikeUrl, fromScenario, isActive, logText, newStep, placeholdersOf, problem, resultLine, stepSentence, toRequest, toScenario, type EditStep } from "./model";
 import type { LiveTestState } from "@/services/connector";
 
 const step = (over: Partial<EditStep>): EditStep => ({ ...newStep("click"), ...over });
@@ -71,5 +71,81 @@ describe("run state", () => {
     expect(text).toMatch(/ask Enter the OTP {2}\(You typed a value \(hidden\)\.\)/);
     expect(text).toMatch(/404 https:\/\/a\.test\/x\.js/);
     expect(text).not.toMatch(/OTP =/);
+  });
+});
+
+describe("step sentences", () => {
+  const st = (over: Partial<import("@/services/connector").LiveTestStep>): import("@/services/connector").LiveTestStep => ({ i: 1, action: "click", target: "Send OTP", value: "", status: "passed", note: "", hasShot: true, secret: false, ...over });
+  it("read the way a tester would say them", () => {
+    expect(stepSentence(st({ i: 0, action: "goto", target: "http://localhost:8765/register" }))).toBe("Open http://localhost:8765/register");
+    expect(stepSentence(st({ action: "click", target: "Send OTP" }))).toBe("Click “Send OTP”");
+    expect(stepSentence(st({ action: "fill", target: "Mobile number", value: "{{mobile}}" }))).toBe("Type “{{mobile}}” into “Mobile number”");
+    expect(stepSentence(st({ action: "ask", target: "Enter the OTP you received", value: "otp", secret: true }))).toBe("Ask you: Enter the OTP you received");
+    expect(stepSentence(st({ action: "expect_text", target: "OTP verified" }))).toBe("Expect “OTP verified” to be visible");
+    expect(stepSentence(st({ action: "expect_url", target: "/success" }))).toBe("Expect the address to contain “/success”");
+  });
+  it("never print a hidden value", () => {
+    expect(stepSentence(st({ action: "fill", target: "PIN", value: "{{pin}}", secret: true }))).toBe("Type a hidden value into “PIN”");
+  });
+});
+
+describe("result line", () => {
+  const run = (over: Record<string, unknown>) => ({ runId: "r", status: "passed", url: "https://a.test", device: "desktop", deviceLabel: "Desktop 1440", campaignId: "", campaignName: "", startedAt: 1, finishedAt: 2, console: [], failed: [], prompt: null, error: null, steps: [], ...over }) as never as Parameters<typeof resultLine>[0];
+  const steps = (...s: string[]) => s.map((status, i) => ({ i, action: i === 0 ? "goto" : "click", target: "x", value: "", status, note: status === "failed" ? "“Verify” did not appear within 15 seconds." : "", hasShot: true, secret: false }));
+  it("counts your steps, not the one that opens the page", () => {
+    expect(resultLine(run({ steps: steps("passed", "passed", "passed", "passed", "passed", "passed") }))).toEqual({ tone: "green", text: "All 5 steps passed." });
+    expect(resultLine(run({ steps: steps("passed", "passed") })).text).toBe("All 1 step passed.");
+  });
+  it("names the step that failed and why", () => {
+    const r = resultLine(run({ status: "failed", steps: steps("passed", "passed", "failed", "skipped") }));
+    expect(r.tone).toBe("red");
+    expect(r.text).toBe("Step 2 failed: “Verify” did not appear within 15 seconds.");
+  });
+  it("says so when the page itself did not open, was blocked, stopped or is still going", () => {
+    expect(resultLine(run({ status: "failed", steps: steps("failed") })).text).toMatch(/^The page did not open/);
+    expect(resultLine(run({ status: "blocked", steps: steps("failed") })).tone).toBe("amber");
+    expect(resultLine(run({ status: "stopped", steps: steps("passed", "failed") })).text).toBe("Stopped.");
+    expect(resultLine(run({ status: "running", finishedAt: null, steps: steps("passed", "running", "pending") }))).toEqual({ tone: "blue", text: "Running step 1 of 2…" });
+  });
+});
+
+describe("the automatic run", () => {
+  it("recognises a pasted web address, and only that", () => {
+    expect(looksLikeUrl("https://thedigitalapps.com/bector-food")).toBe(true);
+    expect(looksLikeUrl("  http://staging.example.com  ")).toBe(true);
+    expect(looksLikeUrl("thedigitalapps.com")).toBe(false);
+    expect(looksLikeUrl("https://sta")).toBe(false);
+    expect(looksLikeUrl("hello world")).toBe(false);
+    expect(looksLikeUrl("javascript:alert(1)")).toBe(false);
+    expect(looksLikeUrl("")).toBe(false);
+  });
+  it("builds the request: a URL, and a login only when there is one", () => {
+    const none = autoRequest(" https://a.test/ ", { username: "", password: "", extra: "" }, ["a.test"]);
+    expect(none).toEqual({ mode: "auto", url: "https://a.test/", allowed_domains: ["a.test"] });
+    const withLogin = autoRequest("https://a.test/", { username: " u ", password: "p", extra: "OTP = 1" }, [], { id: "c", name: "Gold" });
+    expect(withLogin.credentials).toEqual({ username: "u", password: "p", extra: "OTP = 1" });
+    expect(withLogin).toMatchObject({ campaign_id: "c", campaign_name: "Gold" });
+  });
+  it("wants both login fields or neither", () => {
+    expect(loginProblem({ username: "", password: "", extra: "" })).toBeNull();
+    expect(loginProblem({ username: "u", password: "p", extra: "" })).toBeNull();
+    expect(loginProblem({ username: "u", password: "", extra: "" })).toMatch(/both/);
+    expect(loginProblem({ username: "", password: "p", extra: "" })).toMatch(/both/);
+  });
+  it("lists findings worst first", () => {
+    expect(bySeverity([{ severity: "low" }, { severity: "high" }, { severity: "informational" }, { severity: "medium" }]).map((f) => f.severity)).toEqual(["high", "medium", "low", "informational"]);
+  });
+  it("sums an automatic run up from its own summary, and from progress while it runs", () => {
+    const run = (over: Record<string, unknown>) => ({ mode: "auto", runId: "r", status: "passed", url: "https://a.test", device: "All devices", deviceLabel: "All devices", campaignId: "", campaignName: "", startedAt: 1, finishedAt: 2, console: [], failed: [], prompt: null, error: null, steps: [], auto: { devices: [], findings: [], pages: 3, login: null, summary: { tone: "red", text: "2 issues found. 3 of 7 devices affected." } }, ...over }) as never as Parameters<typeof resultLine>[0];
+    expect(resultLine(run({}))).toEqual({ tone: "red", text: "2 issues found. 3 of 7 devices affected." });
+    expect(resultLine(run({ finishedAt: null, status: "running", steps: [{ i: 0, action: "progress", target: "iPhone 15: page 2 of 5: /offers", value: "", status: "running", note: "", hasShot: false, secret: false }] }))).toEqual({ tone: "blue", text: "iPhone 15: page 2 of 5: /offers" });
+    expect(resultLine(run({ status: "stopped" })).text).toBe("Stopped.");
+    expect(resultLine(run({ status: "failed", error: "Could not reach the site" })).text).toBe("Could not reach the site");
+  });
+  it("writes a log with devices and findings and no login detail", () => {
+    const text = logText({ mode: "auto", runId: "r", status: "failed", url: "https://a.test", device: "All devices", deviceLabel: "All devices", campaignId: "", campaignName: "", startedAt: 1, finishedAt: 5001, console: [], failed: [], prompt: null, error: null, steps: [],
+      auto: { devices: [{ id: "iphone-15", label: "iPhone 15", family: "iPhone", engine: "Chromium (emulated)", pages_tested: 4, pages_failed: 0, login: "ok", issues: 1, top_issues: ["Page scrolls sideways"] }], findings: [{ title: "Page scrolls sideways (iPhone 15)", severity: "medium", description: "", page: "", seen: "Seen on 1 page", fix: "" }], pages: 4, login: { status: "ok" }, summary: { tone: "red", text: "1 issue found. 1 of 1 devices affected." } } } as never);
+    expect(text).toMatch(/iPhone 15: 4 pages, 1 issue \(Page scrolls sideways\)/);
+    expect(text).toMatch(/\[medium\] Page scrolls sideways \(iPhone 15\)/);
   });
 });

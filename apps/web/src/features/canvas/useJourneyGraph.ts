@@ -8,7 +8,7 @@ import { UNASSIGNED, type ScreenModel } from "./journeyModel";
 const key = (campaignId: string) => ["journey-graph", campaignId] as const;
 
 /**
- * One journey's graph. If it has not been stored yet, the graph Journ derives from the design screens is shown at once
+ * One journey's graph. If it has not been stored yet, the graph Journey derives from the design screens is shown at once
  * (read-only) and, for people who can edit, stored in one go. Nobody sees a flash of nothing and nothing is invented.
  */
 export function useJourneyGraph(campaignId: string, journeyKey: string, screens: ScreenModel[], canWrite: boolean) {

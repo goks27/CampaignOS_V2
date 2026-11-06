@@ -28,7 +28,7 @@ export function ReportsPage() {
   const reports = useQueries({ queries: active.map((c) => ({ queryKey: ["report", c.id], queryFn: () => reportsService.campaign(c.id) })) });
   const rows = active.map((c, i) => ({ c, r: reports[i]?.data as Report | undefined }));
 
-  const exportCsv = () => downloadText(`journ-portfolio-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map(({ c, r }) => ({
+  const exportCsv = () => downloadText(`journey-portfolio-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map(({ c, r }) => ({
     campaign: c.name, client: c.clients?.name ?? "", stage: c.stage, health: c.health, launch: c.target_launch_date ?? "",
     accepted_requirements: r?.accepted_requirements ?? 0, draft_requirements: r?.requirements?.draft ?? 0,
     open_findings: sum(r?.findings_by_status, OPEN), critical_findings: r?.findings_by_severity?.critical ?? 0,

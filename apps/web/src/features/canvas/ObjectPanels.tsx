@@ -48,7 +48,7 @@ export function NodePanel({ node, nodes, edges, requirements, linked, canWrite, 
     <div className="flex h-full min-h-0 flex-col" data-testid="inspector" data-focus="node">
       <Head eyebrow={meta.label} title={node.label || meta.label} right={<Icon className="size-4 text-muted" />} onClose={onClose} />
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        <p className="text-xs text-muted">{meta.hint}.{node.kind !== "note" && node.kind !== "start" && node.kind !== "end" ? " This step documents the journey; Journ does not test it until a scenario covers it." : ""}</p>
+        <p className="text-xs text-muted">{meta.hint}.{node.kind !== "note" && node.kind !== "start" && node.kind !== "end" ? " This step documents the journey; Journey does not test it until a scenario covers it." : ""}</p>
         {ro && readOnlyReason && <p className="rounded-box border border-line bg-side px-2.5 py-1.5 text-xs text-text-2">{readOnlyReason}</p>}
         {node.kind !== "start" && node.kind !== "end" && (
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (!dirty || ro) return; setSaving(true); void onSave({ label: label.trim(), config: { ...node.config, ...config } }).finally(() => setSaving(false)); }}>

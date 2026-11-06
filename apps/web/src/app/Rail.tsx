@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { continueList } from "@/features/home/model";
 import { useInboxCount } from "@/features/inbox/useInbox";
 
-/** The global left rail: where you are in Journ, and your campaigns. It does not change inside a campaign. */
+/** The global left rail: where you are in Journey, and your campaigns. It does not change inside a campaign. */
 export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () => void; collapsed: boolean; onToggle: () => void; recent: string[] }) {
   const { me, signOut, isManager } = useAuth();
   const { data: campaigns } = useCampaigns();
@@ -22,14 +22,14 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
 
   const item = ({ isActive }: { isActive: boolean }) => cn("group relative flex items-center gap-2.5 rounded-item px-2 py-1.5 text-sm text-text-2 hover:bg-hover hover:text-text", collapsed && "justify-center", isActive && "bg-active font-medium text-text");
   const NAV = [
-    { to: "/inbox", label: "My Inbox", icon: Inbox, badge: inbox }, { to: "/projects", label: "Projects", icon: FolderKanban },
+    { to: "/projects", label: "Projects", icon: FolderKanban },
     { to: "/playground", label: "Playground", icon: FlaskConical }, { to: "/live-test", label: "Live test", icon: Radio },
   ];
 
   return (
     <div className="flex h-full flex-col">
       <div className={cn("flex h-[52px] items-center px-3", collapsed ? "justify-center" : "justify-between")}>
-        <Link to="/" aria-label="Journ home"><Wordmark size={collapsed ? 22 : 24} markOnly={collapsed} /></Link>
+        <Link to="/projects" aria-label="Journey, go to projects"><Wordmark size={collapsed ? 22 : 24} markOnly={collapsed} /></Link>
         {!collapsed && <button onClick={onToggle} aria-label="Collapse the sidebar" title="Collapse the sidebar" className="rounded-ctl p-1 text-muted hover:bg-hover hover:text-text"><PanelLeftClose className="size-4" /></button>}
       </div>
       {collapsed && <button onClick={onToggle} aria-label="Expand the sidebar" title="Expand the sidebar" className="mx-auto mb-1 rounded-ctl p-1 text-muted hover:bg-hover hover:text-text"><PanelLeftOpen className="size-4" /></button>}
@@ -45,7 +45,6 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
           <NavLink key={n.to} to={n.to} className={item} title={collapsed ? n.label : undefined}>
             <n.icon className="size-4 shrink-0" />
             {!collapsed && <span className="flex-1">{n.label}</span>}
-            {n.badge ? <span className={cn("rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num", collapsed && "absolute right-1 top-0.5 px-1 text-[10px]")}>{n.badge > 99 ? "99+" : n.badge}</span> : null}
           </NavLink>
         ))}
       </nav>
@@ -77,11 +76,12 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
         )}
         <DropdownMenu>
           <DropdownMenuTrigger className={cn("flex w-full items-center gap-2 rounded-item px-1.5 py-1 text-left hover:bg-hover", collapsed && "justify-center")} aria-label="Account menu">
-            <Avatar name={me?.fullName} size={26} />
+            <span className="relative"><Avatar name={me?.fullName} size={26} />{inbox > 0 && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-side bg-accent" aria-label={`${inbox} waiting in your inbox`} data-testid="inbox-dot" />}</span>
             {!collapsed && <><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{me?.fullName}</span><span className="block truncate text-xs text-muted">{me?.role ? ROLE_LABEL[me.role] : ""}</span></span><ChevronDown className="size-3.5 text-muted" /></>}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[220px]">
             <DropdownMenuLabel>{me?.workspaceName ?? "Workspace"}</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => navigate("/inbox")}><Inbox /><span className="flex-1">Inbox</span>{inbox ? <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num" data-testid="inbox-count">{inbox > 99 ? "99+" : inbox}</span> : null}</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate("/team")}><Users />Team</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate("/timeline")}><CalendarRange />Timeline</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate("/reports")}><BarChart3 />Reports</DropdownMenuItem>

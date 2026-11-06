@@ -18,7 +18,7 @@ function PageCrumbs() {
   const loc = useLocation();
   const { data: campaigns } = useCampaigns();
   const top = loc.pathname.split("/").filter(Boolean)[0] ?? "";
-  const label = TITLES[top] ?? "Journ";
+  const label = TITLES[top] ?? "Journey";
   const demo = (top === "" || top === "projects" || top === "campaigns") && Boolean(campaigns?.some((c) => c.is_demo));
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 text-sm">

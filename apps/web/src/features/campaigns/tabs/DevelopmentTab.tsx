@@ -1,163 +1,27 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { KeyRound, Plus, Server, Trash2, FlaskConical, ArrowDown, ArrowUp, Pencil } from "lucide-react";
+import { Plus, Trash2, FlaskConical, ArrowDown, ArrowUp, Pencil } from "lucide-react";
 import { Button, Card, Checkbox, Dialog, DialogContent, Field, Input, Select, Textarea } from "@/components/ui";
-import { ConfirmDialog, EmptyState, Mono, Section, StatusDot, Table, Td, Th, Tr, KeyValue } from "@/components/common";
-import { SUBMISSION_STATUS_LABEL, SUBMISSION_STATUS_TONE, VERIFICATION_LABEL, VERIFICATION_TONE } from "@/lib/labels";
+import { ConfirmDialog, EmptyState, Mono, Section, StatusDot, Table, Td, Th, Tr } from "@/components/common";
+import { VERIFICATION_LABEL, VERIFICATION_TONE } from "@/lib/labels";
 import { formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { qk, usePeople, useProfiles } from "@/hooks/queries";
+import { qk, usePeople } from "@/hooks/queries";
 import { useAction } from "@/hooks/useAction";
-import { developmentService, type DevSubmission, type Step, type TestCase, type TestEnvironment } from "@/services/development";
+import { developmentService, type Step, type TestCase } from "@/services/development";
 import { designsService } from "@/services/designs";
 import { requirementsService } from "@/services/requirements";
 import type { CampaignWithRelations } from "@/services/campaigns";
-import { RunReviewButton } from "@/features/shared/RunReview";
-import { AssetImage } from "@/features/shared/AssetImage";
-import { deviceLabel } from "@/lib/devices";
 import { DeviceReport } from "./DeviceReport";
+import { LiveTest } from "@/features/livetest/LiveTestPage";
 
 /** "build" is the staging environments and builds; "testing" is the scenarios and their runs. */
 export function DevelopmentTab({ campaign: c, part = "all" }: { campaign: CampaignWithRelations; part?: "all" | "build" | "testing" }) {
   return (
     <>
-      {part !== "testing" && <><Environments campaign={c} /><Submissions campaign={c} /><DeviceReport campaign={c} /></>}
+      {part !== "testing" && <><Section title="Live test"><LiveTest campaign={c} /></Section><DeviceReport campaign={c} /></>}
       {part !== "build" && <><Scenarios campaign={c} /><Runs campaign={c} /></>}
     </>
-  );
-}
-
-function domainOf(url: string) {
-  try { return new URL(url).hostname; } catch { return ""; }
-}
-
-// ---------------------------------------------------------------- environments
-function Environments({ campaign: c }: { campaign: CampaignWithRelations }) {
-  const { canEdit } = useAuth();
-  const key = qk.dev(c.id);
-  const { data } = useQuery({ queryKey: [...key, "env"], queryFn: () => developmentService.environments(c.id) });
-  const [editing, setEditing] = React.useState<TestEnvironment | "new" | null>(null);
-  const [creds, setCreds] = React.useState<TestEnvironment | null>(null);
-  return (
-    <Section title="Test environments" actions={canEdit && <Button size="sm" onClick={() => setEditing("new")}><Plus />Add environment</Button>}>
-      {!data?.length ? (
-        <Card><EmptyState icon={Server} title="No test environments" body="Add the staging site the browser worker may test. Only the listed domains are visited; private and internal network addresses are always blocked." /></Card>
-      ) : (
-        <Table>
-          <thead><tr><Th>Name</Th><Th>Base URL</Th><Th>Allowed domains</Th><Th>Credentials</Th>{canEdit && <Th />}</tr></thead>
-          <tbody>
-            {data.map((e) => (
-              <Tr key={e.id}>
-                <Td className="font-medium">{e.name}</Td>
-                <Td><Mono>{e.base_url}</Mono></Td>
-                <Td><Mono>{e.allowed_domains.join(", ") || "—"}</Mono></Td>
-                <Td>{e.has_credentials ? <StatusDot tone="green" label="Stored in Vault" /> : <StatusDot tone="gray" label="None" />}</Td>
-                {canEdit && <Td className="text-right whitespace-nowrap">
-                  <Button size="sm" variant="ghost" onClick={() => setCreds(e)}><KeyRound />Credentials</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(e)}><Pencil />Edit</Button>
-                </Td>}
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-      {editing && <EnvironmentDialog campaign={c} env={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
-      {creds && <CredentialsDialog campaign={c} env={creds} onClose={() => setCreds(null)} />}
-    </Section>
-  );
-}
-
-function EnvironmentDialog({ campaign: c, env, onClose }: { campaign: CampaignWithRelations; env: TestEnvironment | null; onClose: () => void }) {
-  const [name, setName] = React.useState(env?.name ?? "Staging");
-  const [base, setBase] = React.useState(env?.base_url ?? c.staging_url ?? "");
-  const [domains, setDomains] = React.useState(env?.allowed_domains.join(", ") ?? "");
-  const [notes, setNotes] = React.useState(env?.access_notes ?? "");
-  const validBase = /^https?:\/\/[^\s/]+/.test(base);
-  const list = (domains || domainOf(base)).split(/[,\s]+/).map((d) => d.trim().toLowerCase()).filter(Boolean);
-  const save = useAction(() => developmentService.saveEnvironment({ id: env?.id, campaign_id: c.id, name, base_url: base, allowed_domains: list, access_notes: notes || null }),
-    { invalidate: [qk.dev(c.id)], success: "Environment saved", onSuccess: onClose });
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={env ? "Edit environment" : "Add test environment"}
-        footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!name || !validBase} loading={save.isPending} onClick={() => save.mutate(undefined)}>Save</Button></>}>
-        <div className="grid gap-3">
-          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Base URL" error={base && !validBase ? "Enter a full URL starting with https://" : undefined}><Input value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://staging.example.com" /></Field>
-          <Field label="Allowed domains" hint={`Comma separated. The browser worker refuses every other host. Defaults to ${domainOf(base) || "the base URL host"}.`}>
-            <Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder={domainOf(base)} />
-          </Field>
-          <Field label="Access instructions" hint="Plain-text notes for testers. Do not put passwords here; use Credentials."><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function CredentialsDialog({ campaign: c, env, onClose }: { campaign: CampaignWithRelations; env: TestEnvironment; onClose: () => void }) {
-  const [username, setUsername] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [extra, setExtra] = React.useState("");
-  const save = useAction(() => developmentService.setCredentials(env.id, username, password, extra), { invalidate: [qk.dev(c.id)], success: "Credentials stored in Vault", onSuccess: onClose });
-  const clear = useAction(() => developmentService.clearCredentials(env.id), { invalidate: [qk.dev(c.id)], success: "Credentials removed", onSuccess: onClose });
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={`Test credentials · ${env.name}`} description="Encrypted in Supabase Vault. Nobody can read them back in the app; only the AI worker receives them while running a job for this environment."
-        footer={<>
-          {env.has_credentials && <Button variant="danger" className="mr-auto" loading={clear.isPending} onClick={() => clear.mutate(undefined)}>Remove stored credentials</Button>}
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!username || !password} loading={save.isPending} onClick={() => save.mutate(undefined)}>{env.has_credentials ? "Replace credentials" : "Store credentials"}</Button>
-        </>}>
-        <form className="grid gap-3" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-          <Field label="Username or test mobile number"><Input autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} /></Field>
-          <Field label="Password or test OTP"><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-          <Field label="Extra details (optional)" hint="One per line. user:pass is HTTP basic auth for the staging server. Label = value is anything else the login asks for, for example: OTP = 123456, or Outlet code = AB12."><Textarea rows={3} autoComplete="off" value={extra} placeholder={"OTP = 123456\nOutlet code = AB12"} onChange={(e) => setExtra(e.target.value)} /></Field>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ---------------------------------------------------------------- submissions
-function Submissions({ campaign: c }: { campaign: CampaignWithRelations }) {
-  const { canEdit, me } = useAuth();
-  const canSubmit = canEdit || (me?.role === "team_member" && c.campaign_members.some((m) => m.user_id === me.id));
-  const { name } = useProfiles();
-  const { data } = useQuery({ queryKey: [...qk.dev(c.id), "subs"], queryFn: () => developmentService.submissions(c.id) });
-  const [creating, setCreating] = React.useState(false);
-  const [open, setOpen] = React.useState<DevSubmission | null>(null);
-  return (
-    <Section title="Development submissions" actions={canSubmit && <Button size="sm" variant="primary" onClick={() => setCreating(true)}><Plus />Submit staging build</Button>}>
-      {!data?.length ? (
-        <Card><EmptyState title="No staging builds submitted" body="Submit a staging URL with its version. Claude looks through the site for errors (broken links and images, console errors, mobile problems, typos). If it does not start by itself, press Test now. You can also run Design vs Development, SOW vs Development and functional QA." /></Card>
-      ) : (
-        <Table>
-          <thead><tr><Th>Version</Th><Th>Journey</Th><Th>Staging URL</Th><Th>Developer</Th><Th>Status</Th><Th>Submitted</Th>{canEdit && <Th>Run</Th>}</tr></thead>
-          <tbody>
-            {data.map((s) => (
-              <Tr key={s.id} onClick={() => setOpen(s)}>
-                <Td><Mono>{s.version_label}</Mono></Td>
-                <Td className="text-text-2">{c.journeys.find((j) => j.id === s.journey_id)?.name ?? "All"}</Td>
-                <Td className="max-w-[240px] truncate"><Mono>{s.staging_url}</Mono></Td>
-                <Td className="text-text-2">{name(s.developer_id)}</Td>
-                <Td><StatusDot tone={SUBMISSION_STATUS_TONE[s.status]} label={SUBMISSION_STATUS_LABEL[s.status]} /></Td>
-                <Td className="text-xs text-muted">{formatDateTime(s.created_at)}</Td>
-                {canEdit && <Td onClick={(e) => e.stopPropagation()} className="whitespace-nowrap">
-                  <div className="flex gap-1">
-                    <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="site_check" source={{ development_submission_id: s.id }} label="Test now" />
-                    <RunReviewButton size="sm" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: s.id }} label="Visual" />
-                    <RunReviewButton size="sm" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: s.id }} label="Functional" />
-                    <RunReviewButton size="sm" campaignId={c.id} reviewType="sow_vs_development" source={{ development_submission_id: s.id }} label="SOW" />
-                    <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="regression" source={{ development_submission_id: s.id }} label="Regression" />
-                  </div>
-                </Td>}
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-      {creating && <SubmissionDialog campaign={c} onClose={() => setCreating(false)} />}
-      {open && <SubmissionDetail campaign={c} sub={open} onClose={() => setOpen(null)} />}
-    </Section>
   );
 }
 
@@ -173,7 +37,6 @@ export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { cam
   const [paths, setPaths] = React.useState("/");
   const [design, setDesign] = React.useState("");
   const [developer, setDeveloper] = React.useState(me?.id ?? "");
-  const [devices, setDevices] = React.useState({ desktop: true, mobile: true });
   const [notes, setNotes] = React.useState("");
   React.useEffect(() => { if (!env && envs.data?.[0]) setEnv(envs.data[0].id); }, [envs.data, env]);
   const approved = (designs.data ?? []).filter((d) => d.status === "approved" || d.status === "in_review");
@@ -181,7 +44,7 @@ export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { cam
   const save = useAction(() => developmentService.createSubmission({
     campaign_id: c.id, journey_id: journey || null, environment_id: env || null, design_submission_id: design || null,
     version_label: version, staging_url: url, developer_id: developer || null,
-    devices: Object.entries(devices).filter(([, v]) => v).map(([k]) => k), page_paths: paths.split(/[\n,]+/).map((p) => p.trim()).filter(Boolean),
+    devices: ["desktop", "mobile"], page_paths: paths.split(/[\n,]+/).map((p) => p.trim()).filter(Boolean),
     notes: notes || null,
   }), { invalidate: [qk.dev(c.id)], success: (r) => `Build ${r.submission.version_label} submitted${r.autoQueued ? `; ${r.autoQueued} check(s) started` : ". Press Test now to check it"}.`, onSuccess: onClose });
   return (
@@ -193,18 +56,9 @@ export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { cam
           <Field label="Journey"><Select value={journey} onChange={(e) => setJourney(e.target.value)} placeholder="All journeys" options={c.journeys.map((j) => ({ value: j.id, label: j.name }))} /></Field>
           <Field label="Staging URL" className="col-span-2" error={url && !validUrl ? "Enter a full URL" : undefined}><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" /></Field>
           <Field label="Pages to capture" hint="Paths relative to the staging URL, one per line." className="col-span-2"><Textarea rows={2} value={paths} onChange={(e) => setPaths(e.target.value)} /></Field>
-          <Field label="Test environment" hint={!envs.data?.length ? "Add an environment above first, so the worker knows which domains it may visit." : undefined}>
-            <Select value={env} onChange={(e) => setEnv(e.target.value)} placeholder="None" options={(envs.data ?? []).map((e) => ({ value: e.id, label: e.name }))} />
-          </Field>
           <Field label="Compare with design"><Select value={design} onChange={(e) => setDesign(e.target.value)} placeholder="No design comparison"
             options={approved.map((d) => ({ value: d.id, label: `${d.title} v${d.version_no}${d.status === "approved" ? " (approved)" : ""}` }))} /></Field>
           <Field label="Developer"><Select value={developer} onChange={(e) => setDeveloper(e.target.value)} placeholder="—" options={people.map((p) => ({ value: p.id, label: p.name }))} /></Field>
-          <Field label="Devices">
-            <div className="flex h-8 items-center gap-4">
-              <Checkbox label="Desktop (1440px)" checked={devices.desktop} onChange={(e) => setDevices({ ...devices, desktop: e.target.checked })} />
-              <Checkbox label="Mobile (390px)" checked={devices.mobile} onChange={(e) => setDevices({ ...devices, mobile: e.target.checked })} />
-            </div>
-          </Field>
           <Field label="Notes" className="col-span-2"><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         </div>
       </DialogContent>
@@ -212,39 +66,6 @@ export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { cam
   );
 }
 
-function SubmissionDetail({ campaign: c, sub, onClose }: { campaign: CampaignWithRelations; sub: DevSubmission; onClose: () => void }) {
-  const caps = useQuery({ queryKey: ["captures", sub.id], queryFn: () => developmentService.captures(sub.id) });
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={`Build ${sub.version_label}`} description={sub.staging_url} className="max-w-4xl">
-        <KeyValue items={[
-          { label: "Journey", value: c.journeys.find((j) => j.id === sub.journey_id)?.name ?? "All journeys" },
-          { label: "Pages", value: <Mono>{sub.page_paths.join(", ")}</Mono> },
-          { label: "Devices", value: sub.devices.join(", ") },
-          { label: "Notes", value: sub.notes },
-        ]} />
-        <p className="section-title mb-2 mt-5">Captures</p>
-        {!caps.data?.length ? <p className="text-sm text-muted">No captures yet. Run a visual or functional review.</p> : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {caps.data.map((cap) => (
-              <div key={cap.id} className="rounded-item border border-line">
-                <AssetImage bucket="captures" path={cap.storage_path} alt={cap.url} className="aspect-[3/4] rounded-t-item" />
-                <div className="p-2 text-xs">
-                  <p className="truncate font-mono">{cap.url}</p>
-                  <p className="text-muted">{deviceLabel(cap.viewport)}{cap.diff_ratio != null ? ` · ${(Number(cap.diff_ratio) * 100).toFixed(1)}% differs from design` : ""}</p>
-                  {(cap.console_messages as unknown[]).length > 0 && <p className="text-st-amber">{(cap.console_messages as unknown[]).length} console errors</p>}
-                  {(cap.failed_requests as unknown[]).length > 0 && <p className="text-st-amber">{(cap.failed_requests as unknown[]).length} failed requests</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ---------------------------------------------------------------- scenarios
 const ACTIONS: { value: Step["action"]; label: string; target: string; value_?: string }[] = [
   { value: "goto", label: "Go to path", target: "/register" },
   { value: "fill", label: "Fill field", target: "Label, placeholder or CSS selector", value_: "Value ({{username}} / {{password}} use stored credentials)" },

@@ -9,7 +9,7 @@ export const deviceLabel = (id: string | null | undefined) => (id ? DEVICE_LABEL
 export type DeviceRow = { id: string; label: string; family: string; engine: string; pages_tested: number; pages_failed: number; login: string; issues: number; top_issues: string[]; skipped?: string };
 export type SiteNotes = {
   pages_checked?: number; devices_tested?: number; devices?: DeviceRow[]; stopped_early?: string;
-  login?: { status: "none" | "ok" | "failed" | "needs" | "blocked"; needs?: string[]; message?: string };
+  login?: { status: "none" | "ok" | "registered" | "failed" | "needs" | "blocked"; needs?: string[]; message?: string };
 };
 export function siteNotes(summary: unknown): SiteNotes | null {
   const n = (summary as { notes?: unknown } | null)?.notes;

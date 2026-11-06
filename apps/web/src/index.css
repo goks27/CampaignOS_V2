@@ -9,7 +9,7 @@
 
 /* DESIGN.md colour tokens as RGB triplets so Tailwind can apply opacity. */
 :root {
-  /* Journ: warm paper neutrals, one deep ink-blue accent. */
+  /* Journey: warm paper neutrals, one deep ink-blue accent. */
   --bg: 250 250 247;
   --side: 244 244 240;
   --surface: 255 255 254;
@@ -64,9 +64,9 @@
 @keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes page-in { from { transform: translateY(4px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes draw { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
-/* Journ motion: short, quiet, and only on arrival. Nothing moves while you read (reduced-motion is honoured above). */
+/* Journey motion: short, quiet, and only on arrival. Nothing moves while you read (reduced-motion is honoured above). */
 .page-enter { animation: page-in 180ms ease-out both; }
-.mark-draw path { stroke-dasharray: 40; animation: draw 700ms ease-out 120ms both; }
+.mark-draw .mark-path { stroke-dasharray: 40; animation: draw 700ms ease-out 120ms both; }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 @media print {

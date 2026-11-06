@@ -7,7 +7,6 @@ import { supabaseConfigured } from "@/lib/supabase";
 import { Spinner } from "@/components/ui";
 import { AppShell } from "./AppShell";
 import { LoginPage, AuthCallbackPage, ForgotPasswordPage, NoAccessPage, SetupNeededPage } from "@/features/auth/AuthPages";
-import { HomePage } from "@/features/home/HomePage";
 import { InboxPage } from "@/features/inbox/InboxPage";
 import { CampaignsPage } from "@/features/campaigns/CampaignsPage";
 import { CampaignWorkspace } from "@/features/campaigns/CampaignWorkspace";
@@ -48,7 +47,7 @@ export function App() {
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route element={<RequireAuth><AppShell /></RequireAuth>}>
-                <Route index element={<HomePage />} />
+                <Route index element={<Navigate to="/projects" replace />} />
                 <Route path="projects" element={<CampaignsPage />} />
                 <Route path="inbox" element={<InboxPage />} />
                 <Route path="campaigns" element={<Navigate to="/projects" replace />} />

@@ -40,3 +40,17 @@ export function pickDevices(ids) {
 
 /** Small screens: sideways scrolling and the viewport tag matter most here. */
 export const isSmallScreen = (d) => (d.opts.viewport?.width ?? 1440) < 800;
+
+/**
+ * The sizes offered in the interactive preview's toolbar. Each is a viewport (plus touch and the matching user agent for the phones and the
+ * tablet), emulated in Chromium: not a physical device. Switching between two desktop-class presets only resizes the page.
+ */
+const sized = (name, w, h) => ({ ...preset(name), viewport: { width: w, height: h }, screen: { width: w, height: h } });
+export const SESSION_PRESETS = [
+  { id: "desktop", label: "Desktop", width: 1440, height: 900, touch: false, opts: { viewport: { width: 1440, height: 900 }, screen: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
+  { id: "laptop", label: "Laptop", width: 1366, height: 768, touch: false, opts: { viewport: { width: 1366, height: 768 }, screen: { width: 1366, height: 768 }, deviceScaleFactor: 1 } },
+  { id: "tablet", label: "iPad", width: 768, height: 1024, touch: true, opts: sized("iPad (gen 7)", 768, 1024) },
+  { id: "iphone", label: "iPhone", width: 390, height: 844, touch: true, opts: sized("iPhone 15", 390, 844) },
+  { id: "android", label: "Android", width: 360, height: 800, touch: true, opts: sized("Pixel 7", 360, 800) },
+];
+export const PRESET_BY_ID = new Map(SESSION_PRESETS.map((p) => [p.id, p]));

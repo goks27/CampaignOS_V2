@@ -41,7 +41,7 @@ Press **Ctrl+J** (or click **Ask Claude** in the top bar) to open a Claude chat.
 - `CLAUDE_ASSISTANT_MODEL` in `services/local-ai-worker/.env` sets the model for chat (defaults to `CLAUDE_MODEL`).
 - Privacy: what Claude reads is sent to Anthropic through your Claude plan, like the review analyses.
 
-## Using Journ day to day
+## Using Journey day to day
 Home shows what you were working on, what is waiting for your review and what is assigned to you. Open a campaign from the left rail: it opens on its canvas, and the row under the top bar (Canvas, Requirements, Designs, Review, Development, Testing, Issues, Activity) is how you move around. **Run tests** in the top bar starts a Site check on the latest build. My Inbox is the single list of everything that needs you.
 
 ## Journey canvases
@@ -154,6 +154,8 @@ Run by the connector in headless Chromium (Playwright). One-time setup: `npm run
 A site check opens every page it finds on seven emulated devices (desktop, laptop, iPhone 15, iPhone SE, Pixel 7, Galaxy S9+, iPad) and reports problems per device. The devices are Chromium emulations, not physical phones and not Safari. If the environment has stored credentials it signs in through the login form once per device; add anything else the login asks for (an OTP, a PIN) to the environment's extra details as `Label = value` lines. Hosts outside the environment's allowed domains are not loaded: the report lists them so you can add them (for example your image CDN).
 
 ## Live test
+
+**Interactive preview.** `POST /browser/open` returns a token at once and launches Chromium in the background; `GET /browser/stream?token=` is an event stream (`frame`, `state`, `event`, `evidence`, `closed`); `POST /browser/input` takes `click`, `wheel`, `key` and `text` with `fx`/`fy` fractions; `POST /browser/command` takes `navigate`, `reload`, `back`, `forward`, `device`, `capture` and `close`; `GET /browser/log?token=&since=&net=all` returns events, console and network; `GET /browser/shot?token=&id=` returns the evidence picture. One session at a time, tokens are random and per session, nothing is written to disk, and everything is gone when it closes or the connector stops. A Live test with `session_token` runs its steps in that same browser and locks it meanwhile.
 The dashboard's Live test page starts a run through `POST /livetest/start`, polls `GET /livetest`, answers a question with `POST /livetest/answer`, and stops with `POST /livetest/stop`. Everything is held in memory until the next run. It needs the browser installed once (`npm run claude:browser`).
 
 ## Live view

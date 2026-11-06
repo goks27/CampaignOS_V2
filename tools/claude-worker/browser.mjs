@@ -107,8 +107,9 @@ export class Browser {
     this.browser = null;
   }
 
-  async newContext(device) {
-    const opts = { ...(DEVICE_BY_ID.get(device)?.opts ?? VIEWPORTS[device] ?? VIEWPORTS.desktop), serviceWorkers: "block", ignoreHTTPSErrors: false, acceptDownloads: false };
+  /** `extra` can carry a saved session (`storageState`), so a device can start already registered or signed in. */
+  async newContext(device, extra = {}) {
+    const opts = { ...(DEVICE_BY_ID.get(device)?.opts ?? VIEWPORTS[device] ?? VIEWPORTS.desktop), serviceWorkers: "block", ignoreHTTPSErrors: false, acceptDownloads: false, ...extra };
     if (this.httpCredentials) opts.httpCredentials = this.httpCredentials;
     const ctx = await this.browser.newContext(opts);
     await ctx.route("**/*", async (route) => {

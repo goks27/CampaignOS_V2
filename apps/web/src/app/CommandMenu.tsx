@@ -1,7 +1,7 @@
 import { Command } from "cmdk";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
-import { FlaskConical, Radio, FolderKanban, Home, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings } from "lucide-react";
+import { FlaskConical, Radio, FolderKanban, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings } from "lucide-react";
 import { SECTIONS, SECTION_LABEL, parseCampaignPath, campaignPath } from "@/lib/nav";
 import { useLocation } from "react-router-dom";
 import { useCampaigns } from "@/hooks/queries";
@@ -48,7 +48,6 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
                 ))}
               </Command.Group>
               <Command.Group heading="Go to" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
-                <Command.Item className={item} onSelect={() => go("/")}><Home />Home</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/inbox")}><Inbox />My Inbox</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/projects")}><FolderKanban />Projects</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/tasks")}><ListChecks />Tasks</Command.Item>

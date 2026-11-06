@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { JournMark, CampaignGlyph } from "@/components/brand";
+import { JourneyMark, CampaignGlyph } from "@/components/brand";
 import { Pill, PhaseStrip } from "@/components/common";
 import { AssetImage } from "@/features/shared/AssetImage";
 import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
@@ -24,7 +24,7 @@ export function CampaignCover({ c, cover }: { c: CampaignWithRelations; cover?: 
       <div className="aspect-[16/10] overflow-hidden border-b border-line bg-side">
         {cover
           ? <AssetImage bucket={cover.bucket} path={cover.path} alt={`${c.name} cover`} className="h-full w-full" imgClassName="object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]" />
-          : <div className="flex h-full items-center justify-center"><JournMark size={44} className="text-line-strong" /></div>}
+          : <div className="flex h-full items-center justify-center"><JourneyMark size={44} className="text-line-strong" /></div>}
       </div>
       <div className="space-y-1.5 p-3">
         <div className="flex items-center gap-2">

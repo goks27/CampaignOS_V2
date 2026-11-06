@@ -1,5 +1,5 @@
 /** Live test, as pure logic: the step editor, what the run needs before it can start, and how scenario steps map to and from it. */
-import type { LiveTestRequest, LiveTestState } from "@/services/connector";
+import type { AutoTestRequest, LiveTestRequest, LiveTestState, LiveTestStep } from "@/services/connector";
 import type { Step } from "@/services/development";
 
 export type Action = Step["action"] | "ask";
@@ -46,10 +46,10 @@ export function problem(url: string, steps: EditStep[], inputs: Inputs): string 
   return missing.length ? `Enter a value for ${missing.map((m) => `{{${m}}}`).join(", ")}.` : null;
 }
 
-export function toRequest(url: string, device: string, steps: EditStep[], inputs: Inputs, allowed: string[]): LiveTestRequest {
+export function toRequest(url: string, device: string, steps: EditStep[], inputs: Inputs, allowed: string[], campaign?: { id: string; name: string }): LiveTestRequest {
   const used = new Set(placeholdersOf(steps));
   return {
-    url: url.trim(), device, allowed_domains: allowed,
+    url: url.trim(), device, allowed_domains: allowed, ...(campaign ? { campaign_id: campaign.id, campaign_name: campaign.name } : {}),
     steps: steps.map((s) => ({ action: s.action, target: s.target.trim(), ...(needsValue(s.action) ? { value: s.value } : {}), ...(s.secret ? { secret: true } : {}) })),
     inputs: Object.fromEntries(Object.entries(inputs).filter(([k]) => used.has(k))),
   };
@@ -71,9 +71,76 @@ export const isActive = (s: LiveTestState | null | undefined): s is Run => Boole
 
 /** The log as plain text, for download. Values are never in it: only the {{names}} the steps used. */
 export function logText(s: Run): string {
+  if (s.mode === "auto") {
+    const lines = [`Live test · All devices · ${s.url}`, s.auto?.summary?.text ?? s.status, ""];
+    for (const d of s.auto?.devices ?? []) lines.push(`${d.label}: ${d.pages_tested} page${d.pages_tested === 1 ? "" : "s"}, ${d.issues} issue${d.issues === 1 ? "" : "s"}${d.top_issues.length ? ` (${d.top_issues.join("; ")})` : ""}`);
+    lines.push("", "Findings:");
+    for (const f of s.auto?.findings ?? []) lines.push(`  [${f.severity}] ${f.title} ${f.seen ? `· ${f.seen}` : ""}`);
+    return lines.join("\n");
+  }
   const lines = [`Live test · ${s.deviceLabel} · ${s.url}`, `${STATUS_LABEL[s.status]}${s.finishedAt ? ` · ${Math.round((s.finishedAt - s.startedAt) / 1000)}s` : ""}`, ""];
   for (const st of s.steps) lines.push(`${String(st.i).padStart(2, " ")}. [${st.status}] ${st.action} ${st.target}${st.action === "ask" || !st.value ? "" : ` = ${st.value}`}${st.note ? `  (${st.note})` : ""}`);
   if (s.console.length) { lines.push("", "Console:"); for (const c of s.console) lines.push(`  ${c.type}: ${c.text}`); }
   if (s.failed.length) { lines.push("", "Failed requests:"); for (const f of s.failed) lines.push(`  ${f.status ?? f.error ?? "failed"} ${f.url}`); }
   return lines.join("\n");
 }
+
+/** A step as a sentence, the way a tester would read it. Values you typed are never shown: only the {{name}}, or "a hidden value". */
+export function stepSentence(s: LiveTestStep): string {
+  const t = s.target, v = s.value;
+  if (s.i === 0) return `Open ${t}`;
+  switch (s.action) {
+    case "goto": return `Go to ${t}`;
+    case "fill": return s.secret ? `Type a hidden value into “${t}”` : `Type “${v}” into “${t}”`;
+    case "click": return `Click “${t}”`;
+    case "select": return `Select “${v}” in “${t}”`;
+    case "check": return `Tick “${t}”`;
+    case "ask": return `Ask you: ${t}`;
+    case "expect_text": return `Expect “${t}” to be visible`;
+    case "expect_visible": return `Expect “${t}” on the page`;
+    case "expect_url": return `Expect the address to contain “${t}”`;
+    case "wait": return `Wait ${t} ms`;
+    case "progress": return t;
+    default: return `${s.action} ${t}`;
+  }
+}
+
+/** The one line that sums a run up, with its colour. The step that opens the page is not counted as one of your steps. */
+export function resultLine(r: Run): { tone: "green" | "red" | "amber" | "blue" | "gray"; text: string } {
+  if (r.mode === "auto") {
+    if (r.status === "stopped") return { tone: "gray", text: "Stopped." };
+    if (r.status === "asking") return { tone: "amber", text: "Waiting for your answer." };
+    if (!r.finishedAt) return { tone: "blue", text: r.steps.at(-1)?.target ?? "Starting…" };
+    if (r.error) return { tone: "red", text: r.error };
+    return r.auto?.summary ?? { tone: "gray", text: "Finished." };
+  }
+  const mine = r.steps.length - 1;
+  const failed = r.steps.find((s) => s.status === "failed");
+  if (r.status === "passed") return { tone: "green", text: mine > 0 ? `All ${mine} step${mine === 1 ? "" : "s"} passed.` : "The page opened." };
+  if (r.status === "failed") return { tone: "red", text: failed ? (failed.i === 0 ? `The page did not open: ${failed.note}` : `Step ${failed.i} failed: ${failed.note || "it did not work."}`) : (r.error ?? "The test failed.") };
+  if (r.status === "blocked") return { tone: "amber", text: "Blocked by a CAPTCHA. It is never bypassed: solve it by hand, or turn it off on staging." };
+  if (r.status === "stopped") return { tone: "gray", text: "Stopped." };
+  if (r.status === "asking") return { tone: "amber", text: "Waiting for your answer." };
+  const at = r.steps.find((s) => s.status === "running" || s.status === "asking")?.i ?? 0;
+  return { tone: "blue", text: `Running step ${at} of ${mine}…` };
+}
+
+/** True for something that looks like a web address a person pasted. */
+export function looksLikeUrl(text: string): boolean {
+  const t = text.trim();
+  if (!t || /\s/.test(t)) return false;
+  try { const u = new URL(t); return ["http:", "https:"].includes(u.protocol) && u.hostname.includes("."); } catch { return false; }
+}
+
+export type Credentials = { username: string; password: string; extra: string };
+/** The automatic run's request. Details are sent only when there is something to send: a username with its password, and/or `Label = value` lines. */
+export function autoRequest(url: string, creds: Credentials, allowed: string[], campaign?: { id: string; name: string }): AutoTestRequest {
+  const withDetails = (creds.username.trim() && creds.password) || creds.extra.trim();
+  return { mode: "auto", url: url.trim(), allowed_domains: allowed, ...(withDetails ? { credentials: { username: creds.username.trim(), password: creds.password, extra: creds.extra } } : {}), ...(campaign ? { campaign_id: campaign.id, campaign_name: campaign.name } : {}) };
+}
+/** What stops a login from being sent, or null. */
+export const loginProblem = (c: Credentials) => ((c.username.trim() && !c.password) || (!c.username.trim() && c.password) ? "Enter both the username and the password, or neither." : null);
+
+const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, informational: 4 };
+/** Findings worst first. */
+export const bySeverity = <T extends { severity: string }>(list: T[]): T[] => [...list].sort((a, b) => (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9));

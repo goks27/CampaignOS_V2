@@ -199,3 +199,224 @@ test("a failed step says what was missing, in plain words", async () => {
   assert.equal(friendlyError({ action: "fill", target: "x" }, new Error("Something else\nmore")), "Something else");
   assert.equal(friendlyError({ action: "expect_text", target: "{{name}}" }, timeout, { name: { value: "Ravi" } }), '"Ravi" did not appear within 15 seconds.');
 });
+
+test("recent runs are kept (newest first), can be opened again with their pictures, and carry the campaign", { skip }, async () => {
+  const { lt } = make();
+  const campaign = { campaign_id: "c1", campaign_name: "Gold Drop" };
+  lt.start({ ...body(), ...campaign });
+  const a = await until(() => (lt.state().status === "asking" ? lt.state() : null));
+  lt.answer({ promptId: a.prompt.id, value: "123456" });
+  await until(() => !lt.active());
+  const first = lt.state().runId;
+  lt.start({ ...campaign, url: base, steps: [{ action: "expect_text", target: "Never on the page" }] });
+  await until(() => !lt.active(), 30_000);
+  const list = lt.runs();
+  assert.equal(list.length, 2);
+  assert.deepEqual(list.map((r) => r.status), ["failed", "passed"], "newest first");
+  assert.equal(list[1].runId, first);
+  assert.equal(list[1].campaignName, "Gold Drop");
+  assert.equal(list[1].passed, 6); assert.equal(list[1].total, 6);
+  // an earlier run opens in full, with its own pictures, while the current one is something else
+  assert.equal(lt.state(first).status, "passed");
+  assert.equal(lt.state(first).steps.length, 6);
+  assert.ok(lt.shot(1, first)?.length > 100, "a picture of an earlier run's step");
+  assert.equal(lt.state().steps.length, 2, "the current state is still the latest run");
+  assert.equal(lt.state("nope").status, "idle");
+  assert.ok(!JSON.stringify(lt.state(first)).includes("123456"), "an earlier run never holds the typed answer");
+});
+
+test("only the newest runs are kept", { skip }, async () => {
+  const { HISTORY } = await import("./livetest.mjs");
+  const { lt } = make({ openBrowser: async () => ({ newContext: async () => ({ newPage: async () => ({ on() {}, setDefaultTimeout() {}, goto: async () => {}, waitForLoadState: async () => {}, content: async () => "", screenshot: async () => Buffer.from([0xff, 0xd8]), isClosed: () => true }) }), close: async () => {} }) });
+  for (let i = 0; i < HISTORY + 3; i++) { lt.start({ url: base, steps: [] }); await until(() => !lt.active(), 10_000); }
+  assert.equal(lt.runs().length, HISTORY);
+});
+
+// ---------------------------------------------------------------- the automatic run: a URL, every device, no steps to write
+const authedSite = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://x");
+  const authed = /s=1/.test(req.headers.cookie ?? "");
+  const send = (code, html, h = {}) => { res.writeHead(code, { "Content-Type": "text/html", ...h }); res.end(html); };
+  const doc = (b) => `<!doctype html><html lang="en"><head><title>T</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">${b}</body></html>`;
+  if (req.method === "POST") {
+    let b = ""; req.on("data", (d) => { b += d; });
+    req.on("end", () => { const p = new URLSearchParams(b); const needOtp = url.pathname === "/otp-login";
+      const good = p.get("user") === "tester" && p.get("pw") === "secret" && (!needOtp || p.get("otp") === "424242");
+      return good ? send(302, "", { Location: "/", "Set-Cookie": "s=1; Path=/" }) : send(200, doc("<p role=alert>Invalid username or password</p>")); });
+    return;
+  }
+  const form = (action, extra = "") => doc(`<form method="post" action="${action}"><label>Mobile number <input name="user" type="text"></label><label>Password <input name="pw" type="password"></label>${extra}<button type="submit">Log in</button></form>`);
+  if (url.pathname === "/") return send(200, doc(`<h1>Home</h1>${authed ? '<a href="/members">Members</a>' : '<a href="/login">Log in</a> <a href="/otp-login">OTP log in</a>'}<div style="width:900px;height:10px;background:#ddd">wide</div>`));
+  if (url.pathname === "/login") return send(200, form("/login"));
+  if (url.pathname === "/otp-login") return send(200, form("/otp-login", '<label>OTP <input name="otp" type="text" required></label>'));
+  if (url.pathname === "/members") return authed ? send(200, doc('<h1>Members</h1><img src="/secret-banner.png" alt="banner">')) : send(302, "", { Location: "/login" });
+  send(404, "nope");
+}).listen(0, "127.0.0.1");
+await new Promise((r) => authedSite.once("listening", r));
+const authedBase = `http://localhost:${authedSite.address().port}/`;
+test.after(() => { authedSite.close(); });
+
+test("auto: a URL alone runs every device and reports per device, no steps and no device to pick", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "auto", url: authedBase });
+  await until(() => !lt.active(), 180_000);
+  const s = lt.state();
+  assert.equal(s.mode, "auto");
+  assert.equal(s.deviceLabel, "All devices");
+  assert.equal(s.auto.devices.length, 7, "all seven devices ran");
+  assert.ok(s.auto.devices.every((d) => d.pages_tested >= 1), JSON.stringify(s.auto.devices.map((d) => [d.id, d.pages_tested])));
+  const phone = s.auto.devices.find((d) => d.id === "iphone-15");
+  assert.ok(phone.top_issues.some((t) => /scrolls sideways/.test(t)), "the wide block is a problem on a phone: " + phone.top_issues.join(" | "));
+  assert.equal(s.auto.devices.find((d) => d.id === "desktop").issues, 0);
+  assert.ok(s.auto.findings.some((f) => /scrolls sideways/.test(f.title) && /iPhone 15/.test(f.title)), "the finding says which devices");
+  assert.equal(s.status, "failed", "a real issue makes the run fail");
+  assert.match(s.auto.summary.text, /issue/);
+  assert.ok(s.steps.length > 7 && s.steps.every((x) => x.action === "progress"), "progress is listed as it happens");
+  assert.equal(s.prompt, null);
+});
+
+test("auto: signs in on every device with the details given up front", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "auto", url: authedBase, devices: ["desktop", "iphone-15"], credentials: { username: "tester", password: "secret" } });
+  await until(() => !lt.active(), 120_000);
+  const s = lt.state();
+  assert.deepEqual(s.auto.devices.map((d) => [d.id, d.login]), [["desktop", "ok"], ["iphone-15", "ok"]]);
+  assert.ok(s.auto.findings.some((f) => /Broken image: secret-banner\.png/.test(f.title)), "the page behind the login was checked: " + s.auto.findings.map((f) => f.title).join(" | "));
+  const text = JSON.stringify(s);
+  for (const needle of [":\"secret\"", "\"tester\"", "tester"]) { const i = text.indexOf(needle); assert.ok(i < 0, `the login details are nowhere in the state, but found ${needle} near: ${text.slice(Math.max(0, i - 80), i + 60)}`); }
+});
+
+test("auto: when the login asks for something that was not given, it stops and asks once, then carries on", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "auto", url: authedBase + "otp-login", devices: ["desktop", "iphone-15"], credentials: { username: "tester", password: "secret" } });
+  const asking = await until(() => (lt.state().status === "asking" ? lt.state() : null), 60_000);
+  assert.match(asking.prompt.label, /OTP/);
+  assert.equal(asking.prompt.secret, true);
+  lt.answer({ promptId: asking.prompt.id, value: "424242" });
+  await until(() => !lt.active(), 120_000);
+  const s = lt.state();
+  assert.deepEqual(s.auto.devices.map((d) => d.login), ["ok", "ok"], "the answer was used on every device, without asking again");
+  assert.ok(!JSON.stringify(s).includes("424242"), "the typed OTP is nowhere in the state");
+});
+
+test("auto: validates the URL, asks for both login fields or neither, and can be stopped", { skip }, async () => {
+  const { lt } = make();
+  assert.throws(() => lt.start({ mode: "auto", url: "nope" }), /staging URL/);
+  assert.throws(() => lt.start({ mode: "auto", url: authedBase, credentials: { username: "a" } }), /both the username and the password/);
+  lt.start({ mode: "auto", url: authedBase });
+  await until(() => lt.state().steps.length > 2, 30_000);
+  lt.stop();
+  await until(() => !lt.active(), 60_000);
+  assert.equal(lt.state().status, "stopped");
+});
+
+// ---------------------------------------------------------------- a campaign with no password: register once, every device then runs by itself
+const campaignPosts = [];
+const campaignSite = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://x");
+  const authed = /s=1/.test(req.headers.cookie ?? "");
+  const doc = (b) => `<!doctype html><html lang="en"><head><title>Cremica</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;font-family:sans-serif">${b}</body></html>`;
+  const send = (code, html, h = {}) => { res.writeHead(code, { "Content-Type": "text/html", ...h }); res.end(html); };
+  if (req.method === "POST") {
+    let b = ""; req.on("data", (d) => { b += d; });
+    req.on("end", () => { const p = Object.fromEntries(new URLSearchParams(b)); campaignPosts.push({ path: url.pathname, ...p });
+      if (url.pathname === "/otp") return send(200, doc(`<form method="post" action="/verify"><label>Enter OTP <input name="otp" type="text" required></label><button type="submit">Verify</button></form>`));
+      if (url.pathname === "/verify") return p.otp === "424242" ? send(302, "", { Location: "/", "Set-Cookie": "s=1; Path=/" }) : send(200, doc("<p role=alert>Wrong OTP</p>"));
+      send(200, doc("ok")); });
+    return;
+  }
+  const REG = `<form method="post" action="/otp"><label>Mobile number <input name="mobile" type="tel" required></label><label>Your name <input name="name" type="text"></label><button type="submit">Get OTP</button></form>`;
+  if (url.pathname === "/") return send(200, authed ? doc('<h1>Welcome back</h1><a href="/game">Play the game</a>') : doc(`<h1>Win a console</h1><button onclick="document.getElementById('r').style.display='block'">REGISTER &amp; PLAY NOW</button><div id="r" style="display:none">${REG}</div>`));
+  if (url.pathname === "/game") return authed ? send(200, doc('<h1>Game</h1><img src="/missing-level.png" alt="level">')) : send(302, "", { Location: "/" });
+  send(404, "nope");
+}).listen(0, "127.0.0.1");
+await new Promise((r) => campaignSite.once("listening", r));
+const campaignBase = `http://localhost:${campaignSite.address().port}/`;
+test.after(() => { campaignSite.close(); });
+
+async function answerAsked(lt, answers, ms = 150_000) {
+  const asked = [];
+  const t0 = Date.now();
+  while (lt.active() && Date.now() - t0 < ms) {
+    const s = lt.state();
+    if (s.status === "asking" && s.prompt) {
+      asked.push({ label: s.prompt.label, secret: s.prompt.secret, skippable: s.prompt.skippable });
+      const key = Object.keys(answers).find((k) => s.prompt.label.toLowerCase().includes(k));
+      lt.answer({ promptId: s.prompt.id, value: answers[key] ?? "1" });
+    }
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return asked;
+}
+
+test("auto: a campaign with no password: it finds the form, asks for the mobile number, name and OTP once, then every device runs by itself", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "auto", url: campaignBase, devices: ["desktop", "iphone-15", "pixel-7"] });
+  const asked = await answerAsked(lt, { mobile: "9876543210", name: "Test Tester", otp: "424242" });
+  const s = lt.state();
+  assert.deepEqual(asked.map((a) => a.label.replace(/^The page asks for: /, "").toLowerCase()), ["mobile number", "your name", "enter otp"], "asked once each, in the order the page shows them");
+  assert.equal(asked.find((a) => /otp/i.test(a.label)).secret, true);
+  assert.ok(asked.every((a) => a.skippable), "every question can be skipped");
+  assert.deepEqual(s.auto.devices.map((d) => d.login), ["registered", "registered", "registered"], "every device started from the registered session");
+  assert.ok(s.auto.devices.every((d) => d.pages_tested >= 2), "the page behind the registration was opened on every device: " + JSON.stringify(s.auto.devices.map((d) => [d.id, d.pages_tested])));
+  assert.ok(s.auto.findings.some((f) => /Broken image: missing-level\.png/.test(f.title)), "the game page was checked: " + s.auto.findings.map((f) => f.title).join(" | "));
+  assert.equal(campaignPosts.filter((p) => p.path === "/otp").length, 1, "the form was filled in only once");
+  assert.ok(!JSON.stringify(s).includes("424242"), "the OTP is nowhere in the state");
+});
+
+test("auto: skipping the form runs the public pages on every device instead", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "auto", url: campaignBase, devices: ["desktop", "iphone-15"] });
+  const t0 = Date.now();
+  while (lt.active() && Date.now() - t0 < 120_000) {
+    const s = lt.state();
+    if (s.status === "asking" && s.prompt) lt.answer({ promptId: s.prompt.id, skip: true });
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  const s = lt.state();
+  assert.deepEqual(s.auto.devices.map((d) => d.login), ["none", "none"]);
+  assert.ok(s.auto.devices.every((d) => d.pages_tested >= 1));
+  assert.ok(!s.auto.findings.some((f) => /missing-level/.test(f.title)), "the page behind the form was not reached");
+});
+
+test("auto: a question can only be skipped when it says it can", { skip }, async () => {
+  const { lt } = make();
+  lt.start({ mode: "script", url: base, steps: [{ action: "ask", target: "Enter the OTP", value: "OTP", secret: true }] });
+  const a = await until(() => (lt.state().status === "asking" ? lt.state() : null), 30_000);
+  assert.throws(() => lt.answer({ promptId: a.prompt.id, skip: true }), /cannot be skipped/);
+  lt.stop();
+  await until(() => !lt.active(), 30_000);
+});
+
+test("auto: the page is on screen from the first moment, including while the registration form waits for you", { skip }, async () => {
+  // frames always go to the shared live store (the one the connector serves), so this test uses it too
+  const live = sharedLive;
+  const lt = createLiveTest({ makeGuard: (a) => new NetGuard(a, { unsafeAllowPrivateForTests: true }) });
+  lt.start({ mode: "auto", url: campaignBase, devices: ["desktop"] });
+  const asking = await until(() => (lt.state().status === "asking" ? lt.state() : null), 60_000);
+  assert.ok(live.state().hasFrame, "there is a picture while it waits for the mobile number");
+  assert.equal(live.state().where?.url, campaignBase, "it says which page it is on");
+  assert.ok(live.state().where?.device, "and which device");
+  assert.equal(live.state().paused, false, "a mobile number is not a secret, so the picture keeps going");
+  lt.stop();
+  await until(() => !lt.active(), 60_000);
+  assert.ok(asking);
+});
+
+test("auto: errors are listed as they are found, with the device and page, before the run ends", { skip }, async () => {
+  const bad = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html" }); res.end('<!doctype html><html lang="en"><head><title>T</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><h1>Home</h1><img src="/gone.png" alt="x"><div style="width:900px;height:10px;background:#ddd">wide</div></body></html>'); }).listen(0, "127.0.0.1");
+  await new Promise((r) => bad.once("listening", r));
+  try {
+    const { lt } = make();
+    lt.start({ mode: "auto", url: `http://localhost:${bad.address().port}/`, devices: ["desktop", "laptop", "iphone-15", "pixel-7"] });
+    // the broken image is on every device, so the first device's errors must already be listed while the others are still being tested
+    const midRun = await until(() => { const s = lt.state(); return s.auto?.errors?.length && !s.finishedAt ? s : null; }, 120_000);
+    assert.ok(midRun.auto.errors.every((e) => e.device && e.page && e.title && e.severity));
+    assert.ok(midRun.auto.errors.some((e) => /Broken image: gone.png/.test(e.title) && e.device.startsWith("Desktop")), "the desktop's error is there first");
+    await until(() => !lt.active(), 120_000);
+    const s = lt.state();
+    assert.ok(s.auto.errors.some((e) => e.device.startsWith("iPhone 15") && /scrolls sideways/.test(e.title) && e.page === "/"), JSON.stringify(s.auto.errors.slice(0, 8)));
+    const seen = new Set();
+    for (const e of s.auto.errors) { const k = `${e.device}|${e.page}|${e.title}`; assert.ok(!seen.has(k), "listed once: " + k); seen.add(k); }
+  } finally { bad.close(); }
+});

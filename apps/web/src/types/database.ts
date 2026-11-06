@@ -579,6 +579,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"live_test_sessions": {
+                  Row: {
+                    "build_label": string | null,"campaign_id": string,"counts": NonNullable<Json>,"created_at": string,"created_by": string | null,"device": string,"ended_at": string,"events": NonNullable<Json>,"id": string,"notes": string | null,"session_ref": string | null,"started_at": string,"updated_at": string,"url": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "build_label"?: string | null,"campaign_id": string,"counts"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string | null,"device": string,"ended_at"?: string,"events"?: NonNullable<Json>,"id"?: string,"notes"?: string | null,"session_ref"?: string | null,"started_at": string,"updated_at"?: string,"url": string,"version"?: number
+                  }
+                  Update: {
+                    "build_label"?: string | null,"campaign_id"?: string,"counts"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string | null,"device"?: string,"ended_at"?: string,"events"?: NonNullable<Json>,"id"?: string,"notes"?: string | null,"session_ref"?: string | null,"started_at"?: string,"updated_at"?: string,"url"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "live_test_sessions_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"milestones": {
                   Row: {
                     "campaign_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"due_date": string,"id": string,"journey_id": string | null,"stage": Database["public"]['Enums']["campaign_stage"] | null,"title": string,"updated_at": string,"version": number

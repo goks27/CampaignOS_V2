@@ -1,6 +1,6 @@
 import type { Stage } from "@/lib/labels";
 
-/** Journ's four phases. The seven detailed stages stay in the data; the phase is how a campaign reads at a glance. */
+/** Journey's four phases. The seven detailed stages stay in the data; the phase is how a campaign reads at a glance. */
 export const PHASES = ["Plan", "Build", "Review", "Launch"] as const;
 export type Phase = (typeof PHASES)[number];
 

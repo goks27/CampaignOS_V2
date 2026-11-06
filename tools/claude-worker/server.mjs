@@ -20,12 +20,13 @@ import { analyse, SUPPORTED } from "./runner.mjs";
 import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
 import { MAX_PLAYGROUND_BYTES, playgroundCheck } from "./playground.mjs";
 import { live as sharedLive } from "./live.mjs";
+import { sessions as sharedSessions, SessionError } from "./browsersession.mjs";
 import { liveTest as sharedLiveTest, BadRequest as LiveTestBadRequest, MAX_BODY_BYTES as LIVETEST_BYTES } from "./livetest.mjs";
 
 const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 
-export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, liveTest = sharedLiveTest, log = console.log }) {
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, liveTest = sharedLiveTest, sessions = sharedSessions, log = console.log }) {
   const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
   const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
   let draining = false, again = false, timer = null, hb = null, assistantBusy = false, playgroundBusy = false;
@@ -128,10 +129,75 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": f.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
       return res.end(f);
     }
+    // The interactive browser: a real Chromium page, streamed to the dashboard, with mouse and keyboard relayed back. Every call but /presets needs the
+    // session's own token, on top of the origin and Host checks above. See browsersession.mjs.
+    if (url.pathname.startsWith("/browser/")) {
+      const fail = (e) => {
+        if (e instanceof SessionError || e instanceof BadRequest) return json({ no_session: 404, locked: 409, unavailable: 409 }[e.code] ?? 400, { error: e.message, code: e.code ?? "bad_request" });
+        log(`browser request failed: ${e.message}`);
+        return json(500, { error: "The preview failed. Check the connector window." });
+      };
+      const token = url.searchParams.get("token") ?? "";
+      const sub = url.pathname.slice("/browser/".length);
+      try {
+        if (req.method === "GET" && sub === "presets") return json(200, sessions.presets());
+        if (req.method === "GET" && sub === "embeddable") {
+          sessions.checkEmbeddable(url.searchParams.get("url") ?? "", (url.searchParams.get("allowed") ?? "").split(",").filter(Boolean), origin ?? "").then((r) => json(200, r)).catch(fail);
+          return;
+        }
+        if (req.method === "GET" && sub === "stream") {
+          sessions.state(token); // 404 for a wrong token, before any stream starts
+          res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...cors });
+          res.write("retry: 3000\n\n");
+          let lastFrame = 0, timer = null, pending = null;
+          const sendFrame = (buf) => { lastFrame = Date.now(); res.write(`event: frame\ndata: ${buf.toString("base64")}\n\n`); };
+          const unsub = sessions.subscribe(token, (kind, payload) => {
+            if (kind === "frame") { // at most about 14 pictures a second; the newest one always wins
+              const wait = 70 - (Date.now() - lastFrame);
+              if (wait <= 0) { pending = null; sendFrame(payload); } else { pending = payload; timer ??= setTimeout(() => { timer = null; if (pending) { const p = pending; pending = null; sendFrame(p); } }, wait); }
+              return;
+            }
+            res.write(`event: ${kind}\ndata: ${JSON.stringify(payload)}\n\n`);
+          });
+          const keep = setInterval(() => res.write(": keep-alive\n\n"), 15_000);
+          req.on("close", () => { unsub(); clearInterval(keep); clearTimeout(timer); });
+          return;
+        }
+        if (req.method === "GET" && sub === "log") return json(200, sessions.log(token, Number(url.searchParams.get("since")) || 0, { netAll: url.searchParams.get("net") === "all" }));
+        if (req.method === "GET" && sub === "shot") {
+          const buf = sessions.shot(token, url.searchParams.get("id"));
+          if (!buf) { res.writeHead(404, { ...cors, "Cache-Control": "no-store" }); return res.end(); }
+          res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": buf.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
+          return res.end(buf);
+        }
+        if (req.method === "POST" && ["open", "command", "input"].includes(sub)) {
+          if (Number(req.headers["content-length"] || 0) > 60_000) { res.setHeader("Connection", "close"); return json(413, { error: "Request is too large." }); }
+          if (!String(req.headers["content-type"] || "").startsWith("application/json")) return json(415, { error: "Send JSON." });
+          readBody(req, 60_000).then(async (body) => {
+            if (sub === "open") return json(200, await sessions.open({ ...(body ?? {}), allowed: Array.isArray(body?.allowed) ? body.allowed : Array.isArray(body?.allowed_domains) ? body.allowed_domains : [], campaign: body?.campaign ?? { id: body?.campaign_id, name: body?.campaign_name }, credentials: body?.credentials ?? null }));
+            const tk = String(body?.token ?? "");
+            if (sub === "input") { await sessions.input(tk, body); return json(200, { ok: true }); }
+            switch (body?.type) {
+              case "navigate": return json(200, await sessions.navigate(tk, body.url));
+              case "reload": return json(200, await sessions.reload(tk));
+              case "back": return json(200, await sessions.back(tk));
+              case "forward": return json(200, await sessions.forward(tk));
+              case "device": return json(200, await sessions.setDevice(tk, String(body.device ?? "")));
+              case "capture": return json(200, await sessions.capture(tk, typeof body.note === "string" ? body.note.slice(0, 200) : undefined));
+              case "close": await sessions.close(tk, "You closed the preview."); return json(200, { ok: true });
+              default: throw new BadRequest("Unknown command.");
+            }
+          }).catch(fail);
+          return;
+        }
+      } catch (e) { return fail(e); }
+      return json(404, { error: "Not found" });
+    }
     // Live test: a run you start and watch from the dashboard. One at a time, and never while a queued job is running.
-    if (req.method === "GET" && url.pathname === "/livetest") return json(200, liveTest.state());
+    if (req.method === "GET" && url.pathname === "/livetest") return json(200, liveTest.state(url.searchParams.get("run") || undefined));
+    if (req.method === "GET" && url.pathname === "/livetest/runs") return json(200, liveTest.runs());
     if (req.method === "GET" && url.pathname.startsWith("/livetest/shot/")) {
-      const f = liveTest.shot(Number(url.pathname.split("/").pop()));
+      const f = liveTest.shot(Number(url.pathname.split("/").pop()), url.searchParams.get("run") || undefined);
       if (!f) { res.writeHead(204, { ...cors, "Cache-Control": "no-store" }); return res.end(); }
       res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": f.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
       return res.end(f);
@@ -205,7 +271,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       }, cfg.pollMs);
       void drain();
     },
-    async stop() { clearInterval(timer); clearInterval(hb); await new Promise((r) => server.close(r)); },
+    async stop() { clearInterval(timer); clearInterval(hb); await sessions.closeAll().catch(() => undefined); await new Promise((r) => server.close(r)); },
   };
 }
 

@@ -1,6 +1,6 @@
-# Journ
+# Journey
 
-> Formerly CampaignOS. Journ is the working product name until trademark and domain checks clear. Repo, database, folder and command names still say campaignos.
+> Formerly CampaignOS. Journey is the working product name until trademark and domain checks clear. Repo, database, folder and command names still say campaignos.
 
 *Every project has a journey.* Octech's internal campaign operations and AI quality-control platform. It takes a campaign from client SOW to live deployment. AI does the analysis, the manager makes the decision, the team executes the correction.
 

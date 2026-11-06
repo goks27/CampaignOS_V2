@@ -11,7 +11,7 @@ import { jobsService } from "@/services/jobs";
 import type { CampaignWithRelations } from "@/services/campaigns";
 
 const LOGIN: Record<string, { tone: "green" | "gray" | "red" | "amber"; label: string }> = {
-  ok: { tone: "green", label: "Signed in" }, none: { tone: "gray", label: "No login used" }, failed: { tone: "red", label: "Sign-in failed" },
+  ok: { tone: "green", label: "Signed in" }, registered: { tone: "green", label: "Registered" }, none: { tone: "gray", label: "No login used" }, failed: { tone: "red", label: "Sign-in failed" },
   needs: { tone: "amber", label: "Needs details" }, blocked: { tone: "amber", label: "CAPTCHA" },
 };
 

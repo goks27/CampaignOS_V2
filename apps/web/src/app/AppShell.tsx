@@ -33,7 +33,7 @@ export function AppShell() {
   }, []);
   React.useEffect(() => setMobileNav(false), [loc.pathname]);
 
-  // The campaigns you open are remembered, per browser, to fill "Continue" on Home and to order the rail.
+  // The campaigns you open are remembered, per browser, to order the campaigns in the rail.
   const campId = camp?.id;
   React.useEffect(() => {
     if (!campId) return;
