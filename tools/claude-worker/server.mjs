@@ -20,11 +20,12 @@ import { analyse, SUPPORTED } from "./runner.mjs";
 import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
 import { MAX_PLAYGROUND_BYTES, playgroundCheck } from "./playground.mjs";
 import { live as sharedLive } from "./live.mjs";
+import { liveTest as sharedLiveTest, BadRequest as LiveTestBadRequest, MAX_BODY_BYTES as LIVETEST_BYTES } from "./livetest.mjs";
 
 const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 
-export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, log = console.log }) {
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, liveTest = sharedLiveTest, log = console.log }) {
   const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
   const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
   let draining = false, again = false, timer = null, hb = null, assistantBusy = false, playgroundBusy = false;
@@ -80,6 +81,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       do {
         again = false;
         for (;;) {
+          if (liveTest.active()) break; // a live test owns the browser; the queue resumes when it ends
           let brief;
           try { brief = await claimNext(db, cfg); } catch (e) {
             if (e instanceof JobFailed) {
@@ -97,6 +99,8 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       } while (again);
     } finally { draining = false; }
   }
+
+  liveTest.onFinish?.(() => void drain());
 
   function handle(req, res) {
     const origin = req.headers.origin;
@@ -123,6 +127,29 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
       if (!f) { res.writeHead(204, { ...cors, "Cache-Control": "no-store" }); return res.end(); }
       res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": f.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
       return res.end(f);
+    }
+    // Live test: a run you start and watch from the dashboard. One at a time, and never while a queued job is running.
+    if (req.method === "GET" && url.pathname === "/livetest") return json(200, liveTest.state());
+    if (req.method === "GET" && url.pathname.startsWith("/livetest/shot/")) {
+      const f = liveTest.shot(Number(url.pathname.split("/").pop()));
+      if (!f) { res.writeHead(204, { ...cors, "Cache-Control": "no-store" }); return res.end(); }
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": f.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...cors });
+      return res.end(f);
+    }
+    if (req.method === "POST" && ["/livetest/start", "/livetest/answer", "/livetest/stop"].includes(url.pathname)) {
+      if (Number(req.headers["content-length"] || 0) > LIVETEST_BYTES) { res.setHeader("Connection", "close"); return json(413, { error: "Request is too large." }); }
+      if (!String(req.headers["content-type"] || "").startsWith("application/json")) return json(415, { error: "Send JSON." });
+      readBody(req, LIVETEST_BYTES).then((body) => {
+        if (url.pathname === "/livetest/stop") { liveTest.stop(); return json(200, { ok: true }); }
+        if (url.pathname === "/livetest/answer") { liveTest.answer(body ?? {}); return json(200, { ok: true }); }
+        if (state.busy) return json(409, { error: "A review is running on this PC right now. Try again when it finishes." });
+        return json(202, liveTest.start(body ?? {}));
+      }).catch((e) => {
+        if (e instanceof LiveTestBadRequest || e instanceof BadRequest) return json(400, { error: e.message });
+        log(`live test request failed: ${e.message}`);
+        json(500, { error: "The live test could not start. Check the connector window." });
+      });
+      return;
     }
     if (req.method === "POST" && url.pathname === "/assistant") {
       // One assistant turn at a time. Review jobs run separately, so a long review never blocks a quick question.

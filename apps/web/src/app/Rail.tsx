@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { ChevronDown, FlaskConical, Home, Inbox, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Users, CalendarRange, BarChart3, Upload, FolderKanban } from "lucide-react";
+import { ChevronDown, FlaskConical, Inbox, LogOut, Radio, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Users, CalendarRange, BarChart3, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
@@ -22,9 +22,8 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
 
   const item = ({ isActive }: { isActive: boolean }) => cn("group relative flex items-center gap-2.5 rounded-item px-2 py-1.5 text-sm text-text-2 hover:bg-hover hover:text-text", collapsed && "justify-center", isActive && "bg-active font-medium text-text");
   const NAV = [
-    { to: "/", label: "Home", icon: Home, end: true }, { to: "/inbox", label: "My Inbox", icon: Inbox, badge: inbox },
-    { to: "/tasks", label: "Tasks", icon: ListChecks }, { to: "/projects", label: "Projects", icon: FolderKanban },
-    { to: "/playground", label: "Playground", icon: FlaskConical },
+    { to: "/inbox", label: "My Inbox", icon: Inbox, badge: inbox }, { to: "/projects", label: "Projects", icon: FolderKanban },
+    { to: "/playground", label: "Playground", icon: FlaskConical }, { to: "/live-test", label: "Live test", icon: Radio },
   ];
 
   return (
@@ -43,7 +42,7 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
 
       <nav className="mt-3 flex flex-col gap-px px-2.5" aria-label="Main">
         {NAV.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} className={item} title={collapsed ? n.label : undefined}>
+          <NavLink key={n.to} to={n.to} className={item} title={collapsed ? n.label : undefined}>
             <n.icon className="size-4 shrink-0" />
             {!collapsed && <span className="flex-1">{n.label}</span>}
             {n.badge ? <span className={cn("rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num", collapsed && "absolute right-1 top-0.5 px-1 text-[10px]")}>{n.badge > 99 ? "99+" : n.badge}</span> : null}
@@ -87,7 +86,6 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
             <DropdownMenuItem onSelect={() => navigate("/timeline")}><CalendarRange />Timeline</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate("/reports")}><BarChart3 />Reports</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate("/settings")}><Settings />Settings</DropdownMenuItem>
-            {isManager && <DropdownMenuItem onSelect={() => navigate("/import")}><Upload />Import from Notion</DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => void signOut()}><LogOut />Sign out</DropdownMenuItem>
           </DropdownMenuContent>

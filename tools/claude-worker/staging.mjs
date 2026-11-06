@@ -15,6 +15,7 @@ import sharp from "sharp";
 import { Browser, startFrames } from "./browser.mjs";
 import { live } from "./live.mjs";
 import { parseExtras } from "./login.mjs";
+import { locateTarget } from "./locate.mjs";
 import { NetGuard } from "./netguard.mjs";
 import { cropPair, downscale, pixelDiff, size, tileForModel } from "./images.mjs";
 import { JobFailed } from "./core.mjs";
@@ -201,13 +202,7 @@ Return {"differences": [{region, relevant, title, severity, description, expecte
   // ---------------------------------------------------------------- functional
   fill(v) { return String(v ?? "").replaceAll("{{username}}", this.creds.username ?? "").replaceAll("{{password}}", this.creds.password ?? ""); }
 
-  async locate(page, target, kind) {
-    if (/^[#.[]|^\w+\[|^\/\//.test(target) || target.startsWith("css=")) return page.locator(target.replace(/^css=/, "")).first();
-    if (kind === "fill") for (const loc of [page.getByLabel(target), page.getByPlaceholder(target)]) if (await loc.count()) return loc.first();
-    if (kind === "click") for (const loc of [page.getByRole("button", { name: target }), page.getByRole("link", { name: target })]) if (await loc.count()) return loc.first();
-    if (kind === "check") { const loc = page.getByLabel(target); if (await loc.count()) return loc.first(); }
-    return page.getByText(target, { exact: false }).first();
-  }
+  locate(page, target, kind) { return locateTarget(page, target, kind); }
 
   async runCase(browser, c, device = "desktop") {
     const ctx = await browser.newContext(device);

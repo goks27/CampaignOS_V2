@@ -26,7 +26,7 @@ export type LiveState = { active: false } | {
 
 async function call(path: string, init?: RequestInit): Promise<Response | null> {
   try {
-    return await fetch(`${CONNECTOR_URL}${path}`, { ...init, signal: AbortSignal.timeout(2500) });
+    return await fetch(`${CONNECTOR_URL}${path}`, { ...init, signal: init?.signal ?? AbortSignal.timeout(2500) });
   } catch {
     return null; // not running, blocked by the browser, or not reachable from this device
   }
@@ -55,5 +55,44 @@ export const connectorService = {
   async wake(): Promise<boolean> {
     const r = await call("/wake", { method: "POST" });
     return Boolean(r && r.status === 202);
+  },
+};
+
+// ---------------------------------------------------------------- Live test (see tools/claude-worker/livetest.mjs)
+export type LiveTestStep = { i: number; action: string; target: string; value: string; status: "pending" | "running" | "asking" | "passed" | "failed" | "skipped"; note: string; ms?: number; hasShot: boolean; secret: boolean };
+export type LiveTestState = { status: "idle" } | {
+  runId: string; status: "running" | "asking" | "passed" | "failed" | "blocked" | "stopped"; url: string; device: string; deviceLabel: string; startedAt: number; finishedAt: number | null;
+  steps: LiveTestStep[]; console: { type: string; text: string }[]; failed: { url: string; status?: number; error?: string }[];
+  prompt: { id: string; label: string; secret: boolean } | null; error: string | null;
+};
+export type LiveTestRequest = { url: string; device: string; steps: { action: string; target: string; value?: string; secret?: boolean }[]; inputs: Record<string, { value: string; secret: boolean }>; allowed_domains: string[] };
+
+const asError = async (r: Response | null, fallback: string) => {
+  if (!r) return new Error("The connector is not running on this PC. Run npm run claude in the project folder.");
+  const j = (await r.json().catch(() => null)) as { error?: string } | null;
+  return new Error(j?.error ?? `${fallback} (${r.status}).`);
+};
+const post = (path: string, body: unknown) => call(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}), signal: AbortSignal.timeout(8000) });
+
+export const liveTestService = {
+  async state(): Promise<LiveTestState | null> {
+    const r = await call("/livetest");
+    if (!r?.ok) return null;
+    try { return (await r.json()) as LiveTestState; } catch { return null; }
+  },
+  async start(req: LiveTestRequest) {
+    const r = await post("/livetest/start", req);
+    if (!r || r.status !== 202) throw await asError(r, "Could not start the test");
+  },
+  async answer(promptId: string, value: string) {
+    const r = await post("/livetest/answer", { promptId, value });
+    if (!r?.ok) throw await asError(r, "Could not send your answer");
+  },
+  async stop() { await post("/livetest/stop", {}); },
+  /** The picture kept for one step, or null. */
+  async shot(i: number): Promise<Blob | null> {
+    const r = await call(`/livetest/shot/${i}`);
+    if (!r || r.status !== 200) return null;
+    try { return await r.blob(); } catch { return null; }
   },
 };

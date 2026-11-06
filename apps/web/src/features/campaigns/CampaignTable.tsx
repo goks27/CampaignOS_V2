@@ -22,7 +22,7 @@ export function CampaignTable({ campaigns, onOpen, selectedIndex, emptyAction }:
   if (!campaigns.length) {
     return (
       <div className="rounded-box border border-line bg-surface">
-        <EmptyState title="No campaigns match" body="Create a campaign, import from Notion, or clear the filters." action={emptyAction} />
+        <EmptyState title="No campaigns match" body="Create a campaign, or clear the filters." action={emptyAction} />
       </div>
     );
   }

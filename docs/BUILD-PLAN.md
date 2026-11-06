@@ -13,7 +13,7 @@ Report what exists. No code changes. Decides which phase to start.
 4. Dashboard: summary strip, campaign table with journey sub-rows, attention list, recent activity.
 5. Campaign CRUD, journeys, team assignment, campaign drawer and workspace (Overview and Journeys tabs live; the rest gated).
 6. Basic tasks (create, assign, status, due date, list view) and activity logging on every change.
-7. Notion CSV import with a mapping preview.
+7. ~~Notion CSV import with a mapping preview.~~ Removed on 6 Nov 2026 (Gokul: not needed).
 8. Cloudflare Pages deployment guide and the development-only demo seed.
 
 ## Phase 2 — Local worker, model benchmark and SOW intelligence (`prompts/02-local-ai-and-sow.md`)

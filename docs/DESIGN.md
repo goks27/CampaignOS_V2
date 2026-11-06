@@ -67,6 +67,9 @@ Journ is a workspace, not a set of pages. The campaign is the interface: it open
 ### Canvas
 The canvas fills the campaign workspace: a **journey dropdown** (top left; "All journeys (pipeline)" is the last item and "Manage journeys" opens the journeys drawer), a **zoom toolbar** (top right: fit, zoom out, percentage, zoom in, full screen), the **inspector** docked on the right (400px; below 1024px it opens as a drawer), and the **dock** underneath (AI Review, Issues, Test Runs, Activity for the open journey; collapsible, remembered).
 
+#### Live test page
+Sidebar item "Live test". Two columns on a wide screen (a 420px set-up card, then the preview), stacked on a phone. Set-up: URL, device, optional campaign scenario, the step editor (action, target, value, a Hide box for anything secret), and one box per {{name}} the steps use. Preview: a status line (Running, Waiting for you, Passed, Failed, Blocked, Stopped) with Run again, Save as scenario and Log; the live picture, or the picture kept for the step you click; an amber answer box when a step asks you to type (a password field when the answer is secret); then Steps, Console and Network tabs. It says plainly when the connector is not running.
+
 #### Device report
 On the Development section, under the builds: one card for the latest finished site check. A sentence (when, pages, how many devices have issues, link to the findings), a sign-in note when the login failed or asked for details that are not stored (what to add), a table of devices (pages opened, result, sign-in) where a click opens the issues seen on that device, and a plain note that the devices are emulated.
 

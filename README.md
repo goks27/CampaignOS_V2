@@ -10,7 +10,7 @@
 
 | Area | What's there |
 |---|---|
-| Campaigns | Multi-journey campaigns, 7-stage tracking, team assignment, health, milestones, Notion CSV import |
+| Campaigns | Multi-journey campaigns, 7-stage tracking, team assignment, health, milestones |
 | Requirements | SOW upload with versions, local extraction with page refs and verbatim quotes, OCR for scanned pages, manager verification |
 | Design review | PDF/image (or Figma) submissions, SOW vs Design, consistency review, Findings Inbox with evidence regions |
 | Development review | Staging builds, Vault-stored credentials, pixel diff vs design, Playwright scenarios, SOW compliance states |

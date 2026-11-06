@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { ChevronRight, Menu, Moon, Sparkles as SparklesIcon, Sun } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Menu, Moon, Sparkles as SparklesIcon, Sun } from "lucide-react";
 import { parseCampaignPath } from "@/lib/nav";
 import { useCampaigns } from "@/hooks/queries";
 import { DemoBadge } from "@/components/common";
@@ -10,8 +10,8 @@ import { NotificationsButton } from "./Notifications";
 import { useTheme } from "./theme";
 
 const TITLES: Record<string, string> = {
-  "": "Home", inbox: "My Inbox", tasks: "Tasks", projects: "Projects", campaigns: "Projects", playground: "Playground", team: "Team", settings: "Settings",
-  timeline: "Timeline", reports: "Reports", import: "Import from Notion", reviews: "Findings Inbox",
+  "": "Home", inbox: "My Inbox", tasks: "Tasks", projects: "Projects", campaigns: "Projects", playground: "Playground", "live-test": "Live test", team: "Team", settings: "Settings",
+  timeline: "Timeline", reports: "Reports", reviews: "Findings Inbox",
 };
 
 function PageCrumbs() {
@@ -22,7 +22,6 @@ function PageCrumbs() {
   const demo = (top === "" || top === "projects" || top === "campaigns") && Boolean(campaigns?.some((c) => c.is_demo));
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 text-sm">
-      {top === "import" && <><Link to="/projects" className="text-text-2 hover:text-text">Projects</Link><ChevronRight className="size-3.5 shrink-0 text-muted" /></>}
       <span className="truncate font-medium text-text">{label}</span>
       {demo && <span className="ml-2"><DemoBadge /></span>}
     </nav>

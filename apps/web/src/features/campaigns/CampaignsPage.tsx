@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { LayoutGrid, List, Plus, Upload } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { LayoutGrid, List, Plus } from "lucide-react";
 import { Button } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/common";
 import { useAuth } from "@/lib/auth";
@@ -41,7 +41,6 @@ export function CampaignsPage() {
             <button onClick={() => pick("grid")} aria-pressed={view === "grid"} aria-label="Grid view" className={cn("rounded px-1.5 py-1 text-muted hover:text-text", view === "grid" && "bg-active text-text")}><LayoutGrid className="size-4" /></button>
             <button onClick={() => pick("list")} aria-pressed={view === "list"} aria-label="List view" className={cn("rounded px-1.5 py-1 text-muted hover:text-text", view === "list" && "bg-active text-text")}><List className="size-4" /></button>
           </div>
-          {canEdit && <Button asChild><Link to="/import"><Upload />Import from Notion</Link></Button>}
           {newBtn}
         </>} />
       <CampaignFilters campaigns={data ?? []} value={filter} onChange={setFilter} />

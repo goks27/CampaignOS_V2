@@ -18,7 +18,7 @@ import { TimelinePage } from "@/features/timeline/TimelinePage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { PlaygroundPage } from "@/features/playground/PlaygroundPage";
-import { ImportPage } from "@/features/import/ImportPage";
+import { LiveTestPage } from "@/features/livetest/LiveTestPage";
 import { NotFoundPage } from "./NotFoundPage";
 
 const queryClient = new QueryClient({
@@ -60,8 +60,8 @@ export function App() {
                 <Route path="timeline" element={<TimelinePage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="playground" element={<PlaygroundPage />} />
+                <Route path="live-test" element={<LiveTestPage />} />
                 <Route path="settings" element={<SettingsPage />} />
-                <Route path="import" element={<ImportPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

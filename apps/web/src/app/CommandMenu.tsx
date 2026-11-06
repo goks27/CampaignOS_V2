@@ -1,7 +1,7 @@
 import { Command } from "cmdk";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
-import { FlaskConical, FolderKanban, Home, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings, Upload } from "lucide-react";
+import { FlaskConical, Radio, FolderKanban, Home, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings } from "lucide-react";
 import { SECTIONS, SECTION_LABEL, parseCampaignPath, campaignPath } from "@/lib/nav";
 import { useLocation } from "react-router-dom";
 import { useCampaigns } from "@/hooks/queries";
@@ -33,7 +33,6 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
                 <Command.Group heading="Actions" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
                   <Command.Item className={item} onSelect={() => go("/projects?new=1")}><Plus />New project</Command.Item>
                   <Command.Item className={item} onSelect={() => go("/tasks?new=1")}><Plus />New task</Command.Item>
-                  <Command.Item className={item} onSelect={() => go("/import")}><Upload />Import campaigns from Notion</Command.Item>
                 </Command.Group>
               )}
               {here && (
@@ -54,6 +53,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
                 <Command.Item className={item} onSelect={() => go("/projects")}><FolderKanban />Projects</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/tasks")}><ListChecks />Tasks</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/playground")}><FlaskConical />Playground</Command.Item>
+                <Command.Item className={item} onSelect={() => go("/live-test")}><Radio />Live test</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/reviews")}><Sparkles />Findings Inbox</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/team")}><Users />Team</Command.Item>
                 <Command.Item className={item} onSelect={() => go("/timeline")}><CalendarRange />Timeline</Command.Item>

@@ -13,7 +13,7 @@
     "db:test": "supabase test db",
     "db:types": "supabase gen types typescript --local > apps/web/src/types/database.ts",
     "claude": "node tools/claude-worker/server.mjs",
-    "claude:test": "node --test tools/claude-worker/worker.test.mjs tools/claude-worker/connector.test.mjs tools/claude-worker/assistant.test.mjs tools/claude-worker/staging.test.mjs tools/claude-worker/playground.test.mjs tools/claude-worker/sitecheck.test.mjs tools/claude-worker/settle.test.mjs tools/claude-worker/live.test.mjs tools/claude-worker/login.test.mjs",
+    "claude:test": "node --test tools/claude-worker/worker.test.mjs tools/claude-worker/connector.test.mjs tools/claude-worker/assistant.test.mjs tools/claude-worker/staging.test.mjs tools/claude-worker/playground.test.mjs tools/claude-worker/sitecheck.test.mjs tools/claude-worker/settle.test.mjs tools/claude-worker/live.test.mjs tools/claude-worker/login.test.mjs tools/claude-worker/livetest.test.mjs",
     "claude:browser": "npm --prefix tools/claude-worker run install-browser"
   }
 }
