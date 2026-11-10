@@ -599,6 +599,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"rule_scenarios": {
+                  Row: {
+                    "accepted": boolean,"accepted_at": string | null,"accepted_by": string | null,"campaign_id": string,"created_at": string,"created_by": string | null,"enabled": boolean,"id": string,"linked_requirement_id": string | null,"name": string,"scenario": NonNullable<Json>,"source": string,"suite": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "accepted"?: boolean,"accepted_at"?: string | null,"accepted_by"?: string | null,"campaign_id": string,"created_at"?: string,"created_by"?: string | null,"enabled"?: boolean,"id"?: string,"linked_requirement_id"?: string | null,"name": string,"scenario": NonNullable<Json>,"source"?: string,"suite"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "accepted"?: boolean,"accepted_at"?: string | null,"accepted_by"?: string | null,"campaign_id"?: string,"created_at"?: string,"created_by"?: string | null,"enabled"?: boolean,"id"?: string,"linked_requirement_id"?: string | null,"name"?: string,"scenario"?: NonNullable<Json>,"source"?: string,"suite"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "rule_scenarios_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"rule_runs": {
+                  Row: {
+                    "build_label": string | null,"campaign_id": string,"counts": NonNullable<Json>,"created_at": string,"created_by": string | null,"environment": string,"id": string,"ran_at": string,"result": NonNullable<Json>,"scenario_id": string | null,"scenario_name": string,"scenario_version": number | null,"status": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "build_label"?: string | null,"campaign_id": string,"counts"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string | null,"environment"?: string,"id"?: string,"ran_at"?: string,"result": NonNullable<Json>,"scenario_id"?: string | null,"scenario_name": string,"scenario_version"?: number | null,"status": string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "build_label"?: string | null,"campaign_id"?: string,"counts"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string | null,"environment"?: string,"id"?: string,"ran_at"?: string,"result"?: NonNullable<Json>,"scenario_id"?: string | null,"scenario_name"?: string,"scenario_version"?: number | null,"status"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "rule_runs_campaign_id_fkey"
+      columns: ["campaign_id"]
+isOneToOne: false
+      referencedRelation: "campaigns"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"milestones": {
                   Row: {
                     "campaign_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"due_date": string,"id": string,"journey_id": string | null,"stage": Database["public"]['Enums']["campaign_stage"] | null,"title": string,"updated_at": string,"version": number
@@ -1257,6 +1297,18 @@ isOneToOne: true
 { Args: { "p_campaign": string,"p_journey": string | null,"p_nodes": Json,"p_edges": Json }; Returns: boolean
                            },
 "dashboard_summary":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"campaign_progress":
+{ Args: { p_campaign: string }; Returns: Json
+                           },
+"enqueue_reviews":
+{ Args: { p_campaign: string; p_action: string; p_source?: Json; p_run_again?: boolean }; Returns: Json
+                           },
+"home_summary":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"portfolio_report":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "diag":

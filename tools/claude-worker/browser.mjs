@@ -3,6 +3,7 @@
  * One browser per job. Every request goes through the NetGuard; service workers are blocked; HTTPS errors are not ignored.
  */
 import { chromium } from "playwright-core";
+import { browserChildren, verifyLaunch, profileRemoved } from "./isolation.mjs";
 import { JobFailed } from "./core.mjs";
 import { live } from "./live.mjs";
 import { DEVICE_BY_ID } from "./devices.mjs";
@@ -29,6 +30,46 @@ const AUDIT = `() => {
     smallTargets: [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, [role=button]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.width < 32 || r.height < 32) && getComputedStyle(e).visibility !== "hidden"; }).length,
     tinyText: [...document.querySelectorAll("p, li, span, a, td, label, h1, h2, h3, h4")].filter((e) => e.childElementCount === 0 && (e.innerText || "").trim().length > 3 && parseFloat(getComputedStyle(e).fontSize) < 11).length,
     unlabelledInputs: inputs.filter((i) => !(i.labels && i.labels.length) && !i.getAttribute("aria-label") && !i.getAttribute("aria-labelledby") && !i.getAttribute("placeholder")).length,
+    layout: (() => {
+      const vw = document.documentElement.clientWidth;
+      const shown = (e) => { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) < 0.05) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      const name = (e) => ({ tag: e.tagName.toLowerCase(), text: (e.innerText || e.value || e.getAttribute("aria-label") || e.getAttribute("alt") || "").trim().replace(/ +/g, " ").slice(0, 30) });
+      const textRect = (e) => { const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { if (n.nodeValue.trim().length > 1) { const rg = document.createRange(); rg.selectNodeContents(n); const r = rg.getBoundingClientRect(); if (r.width > 0) return r; } } return null; };
+      const out = { edge: [], clipped: [], overlap: [], tight: [], cramped: [] };
+      const textual = [...document.querySelectorAll("p, li, span, a, h1, h2, h3, h4, h5, h6, button, label, td, div")].filter((e) => e.childElementCount === 0 && (e.innerText || "").trim().length > 2).slice(0, 500);
+      for (const e of textual) {
+        if (!shown(e)) continue;
+        const tr = textRect(e); if (!tr || tr.width < 20) continue;
+        if (tr.left >= 0 && tr.right <= vw + 1 && (tr.left < 6 || vw - tr.right < 6)) out.edge.push({ ...name(e), gap: Math.round(Math.min(tr.left, vw - tr.right)) });
+      }
+      for (const e of [...document.querySelectorAll("body *")].slice(0, 1500)) {
+        const cs = getComputedStyle(e);
+        if (!/hidden|clip/.test(cs.overflowX + cs.overflowY) || e.clientWidth < 1 || e.childElementCount > 3 || (e.innerText || "").trim().length < 4 || !shown(e)) continue;
+        if ((e.scrollWidth > e.clientWidth + 2 && cs.textOverflow !== "ellipsis") || (e.scrollHeight > e.clientHeight + 4 && /hidden|clip/.test(cs.overflowY))) out.clipped.push(name(e));
+      }
+      const tap = [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, [role=button]")].filter((e) => shown(e) && !/fixed|sticky/.test(getComputedStyle(e).position)).slice(0, 120);
+      const rects = tap.map((e) => e.getBoundingClientRect());
+      for (let i = 0; i < tap.length; i++) for (let j = i + 1; j < tap.length; j++) {
+        if (tap[i].contains(tap[j]) || tap[j].contains(tap[i])) continue;
+        const a = rects[i], b = rects[j];
+        const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left), oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (ox > 0 && oy > 0) { if ((ox * oy) / Math.min(a.width * a.height, b.width * b.height) > 0.3) out.overlap.push({ a: name(tap[i]), b: name(tap[j]) }); continue; }
+        const small = (r) => r.height < 48 || r.width < 48;
+        const inline = (e) => getComputedStyle(e).display === "inline";
+        if (inline(tap[i]) || inline(tap[j]) || !small(a) || !small(b)) continue;
+        const gx = Math.max(a.left, b.left) - Math.min(a.right, b.right), gy = Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom);
+        if ((gx >= 0 && gx < 6 && oy > Math.min(a.height, b.height) * 0.5) || (gy >= 0 && gy < 6 && ox > Math.min(a.width, b.width) * 0.5)) out.tight.push({ a: name(tap[i]), b: name(tap[j]), gap: Math.round(Math.max(0, Math.min(gx < 0 ? 99 : gx, gy < 0 ? 99 : gy))) });
+      }
+      for (const e of tap) {
+        const cs = getComputedStyle(e), r = e.getBoundingClientRect();
+        if (r.height > 120 || (cs.backgroundColor === "rgba(0, 0, 0, 0)" && !(parseFloat(cs.borderTopWidth) > 0))) continue;
+        const tr = textRect(e); if (!tr) continue;
+        if (tr.left - r.left < 6 || r.right - tr.right < 6 || tr.top - r.top < 3 || r.bottom - tr.bottom < 3) out.cramped.push(name(e));
+      }
+      const res = {};
+      for (const k of Object.keys(out)) res[k] = { count: out[k].length, sample: out[k].slice(0, 4) };
+      return res;
+    })(),
   };
 }`;
 
@@ -82,8 +123,11 @@ export async function withFrames(page, fn, opts) {
 
 export class Browser {
   /** `headed` opens a visible window on this PC (the installed Google Chrome when there is one) instead of a hidden browser. */
-  constructor(guard, httpCredentials = null, { headed = false } = {}) {
+  constructor(guard, httpCredentials = null, { headed = false, verify = false } = {}) {
     this.headed = headed;
+    this.verify = verify;
+    this.engine = "Chromium";
+    this.isolation = null;
     this.guard = guard;
     this.httpCredentials = httpCredentials;
     this.browser = null;
@@ -93,11 +137,19 @@ export class Browser {
     const args = ["--disable-background-networking", "--no-first-run", "--disable-sync", "--disable-extensions"];
     const rules = await this.guard.resolverRules();
     if (rules) args.push(`--host-resolver-rules=${rules}`);
+    // Always Incognito, always a throw-away profile (Playwright makes a fresh temporary folder for every launch and removes it on close).
+    // Google Chrome when it is installed; otherwise the Chromium that came with the tools, and the isolation report says which.
+    args.push("--incognito");
+    const want = String(process.env.JOURNEY_BROWSER ?? "chrome").toLowerCase();
     try {
-      if (this.headed) {
-        try { this.browser = await chromium.launch({ headless: false, channel: "chrome", args }); } // the real Chrome app, when installed
-        catch { this.browser = await chromium.launch({ headless: false, args }); } // otherwise the Chromium that came with the tools
-      } else this.browser = await chromium.launch({ headless: true, args });
+      const before = this.verify ? await browserChildren() : [];
+      let launched = null;
+      if (want !== "chromium") {
+        try { launched = { b: await chromium.launch({ headless: !this.headed, channel: "chrome", args }), engine: "Google Chrome" }; } catch { /* not installed */ }
+      }
+      launched ??= { b: await chromium.launch({ headless: !this.headed, args }), engine: want === "chromium" ? "Chromium" : "Chromium (Google Chrome was not found)" };
+      this.browser = launched.b; this.engine = launched.engine;
+      if (this.verify) this.isolation = await verifyLaunch(before, { engine: launched.engine, version: this.browser.version() });
     } catch (e) {
       if (/Executable doesn't exist|browserType\.launch/i.test(String(e.message))) {
         throw new JobFailed("The browser for staging reviews is not installed on this PC. Run npm run claude:browser once, then run the review again.", { retryable: false });
@@ -110,6 +162,8 @@ export class Browser {
   async close() {
     try { await this.linkCtx?.close(); await this.browser?.close(); } catch { /* already closed */ }
     this.browser = null;
+    // the temporary profile goes with the browser; say so only when it was checked
+    if (this.isolation?.profileDir) this.isolation.profileRemoved = await profileRemoved(this.isolation.profileDir);
   }
 
   /** `extra` can carry a saved session (`storageState`), so a device can start already registered or signed in. */

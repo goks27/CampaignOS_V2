@@ -134,9 +134,9 @@ export function looksLikeUrl(text: string): boolean {
 
 export type Credentials = { username: string; password: string; extra: string };
 /** The automatic run's request. Details are sent only when there is something to send: a username with its password, and/or `Label = value` lines. */
-export function autoRequest(url: string, creds: Credentials, allowed: string[], campaign?: { id: string; name: string }): AutoTestRequest {
+export function autoRequest(url: string, creds: Credentials, allowed: string[], campaign?: { id: string; name: string }, includeDesktop = false): AutoTestRequest {
   const withDetails = (creds.username.trim() && creds.password) || creds.extra.trim();
-  return { mode: "auto", url: url.trim(), allowed_domains: allowed, ...(withDetails ? { credentials: { username: creds.username.trim(), password: creds.password, extra: creds.extra } } : {}), ...(campaign ? { campaign_id: campaign.id, campaign_name: campaign.name } : {}) };
+  return { mode: "auto", url: url.trim(), allowed_domains: allowed, ...(withDetails ? { credentials: { username: creds.username.trim(), password: creds.password, extra: creds.extra } } : {}), ...(campaign ? { campaign_id: campaign.id, campaign_name: campaign.name } : {}), ...(includeDesktop ? { include_desktop: true } : {}) };
 }
 /** What stops a login from being sent, or null. */
 export const loginProblem = (c: Credentials) => ((c.username.trim() && !c.password) || (!c.username.trim() && c.password) ? "Enter both the username and the password, or neither." : null);

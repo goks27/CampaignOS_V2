@@ -123,6 +123,19 @@ describe("the automatic run", () => {
     expect(svc.browser.open.mock.calls[0]![0]).toMatchObject({ url: "https://staging.gold.example/register", window: true });
   });
 
+  it("tests phones and tablets by default and adds desktop only when asked", async () => {
+    show();
+    await waitFor(() => expect(url()).toHaveValue("https://staging.gold.example/register"));
+    fireEvent.click(screen.getByRole("button", { name: /Run test on every device/ }));
+    await waitFor(() => expect(svc.live.start).toHaveBeenCalledTimes(1));
+    expect(svc.live.start.mock.calls[0]![0].include_desktop).toBeUndefined();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Run test on every device/ })).toBeEnabled());
+    fireEvent.click(screen.getByLabelText(/Also test on desktop/));
+    fireEvent.click(screen.getByRole("button", { name: /Run test on every device/ }));
+    await waitFor(() => expect(svc.live.start).toHaveBeenCalledTimes(2));
+    expect(svc.live.start.mock.calls[1]![0].include_desktop).toBe(true);
+  });
+
   it("typing a half-finished address does not open anything, but Enter does once it is a real URL", async () => {
     show();
     await waitFor(() => expect(url()).toHaveValue("https://staging.gold.example/register"));

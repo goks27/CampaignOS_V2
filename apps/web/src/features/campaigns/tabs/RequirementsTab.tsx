@@ -1,3 +1,4 @@
+import { autoReviewNote } from "@/lib/autoReview";
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileUp, Plus, Check, X, HelpCircle, RotateCcw, FileText } from "lucide-react";
@@ -17,7 +18,7 @@ import { requirementsService, sowService, type Requirement, type SowDocument, ty
 import { storageService, validateFile } from "@/services/storage";
 import type { CampaignWithRelations } from "@/services/campaigns";
 import { useToast } from "@/components/toast";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { BrandAssets } from "./BrandAssets";
 
 export function RequirementsTab({ campaign: c }: { campaign: CampaignWithRelations }) {
@@ -56,7 +57,7 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
   const [target, setTarget] = React.useState<SowDocument | null>(null);
   const upload = useAction((f: File) => sowService.upload(c.id, f, target?.id), {
     invalidate: [key], error: "Upload failed",
-    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}${r.autoQueued ? " and queued for analysis" : ". Run the analysis when ready"}. Add the logo and other brand files under Brand assets below.`,
+    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}. ${autoReviewNote("sow", r.autoQueued)} Add the logo and other brand files under Brand assets below.`,
   });
   const pick = (doc: SowDocument | null) => { setTarget(doc); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,8 +95,8 @@ function SowPanel({ campaign: c }: { campaign: CampaignWithRelations }) {
                     <StatusDot tone={JOB_STATUS_TONE[EXTRACTION_TONE[v.extraction_status] ?? "queued"]} label={EXTRACTION_LABEL[v.extraction_status]} />
                     <span className="text-xs text-muted">{formatDateTime(v.created_at)}</span>
                     {canEdit && i === 0 && !["queued", "processing"].includes(v.extraction_status) && (
-                      <RunReviewButton size="sm" campaignId={c.id} reviewType="sow_analysis" source={{ sow_version_id: v.id }}
-                        label={v.extraction_status === "extracted" ? "Analyse again" : "Run SOW analysis"} variant={v.extraction_status === "extracted" ? "ghost" : "primary"} />
+                      <ReviewActionButton size="sm" campaignId={c.id} action="check_sow" source={{ sow_version_id: v.id }}
+                        label={v.extraction_status === "extracted" ? "Check again" : "Check SOW"} variant={v.extraction_status === "extracted" ? "ghost" : "primary"} />
                     )}
                   </li>
                 ))}

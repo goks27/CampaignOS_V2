@@ -10,7 +10,7 @@ import { groupIssues, pageIssues, pageKey, pickCrawlLinks, RISKY, sameSite } fro
 import { runStaging } from "./staging.mjs";
 import { NetGuard } from "./netguard.mjs";
 import { validate } from "./core.mjs";
-import { DEVICES } from "./devices.mjs";
+import { DEVICES, OPTIONAL_DEVICES, pickDevices } from "./devices.mjs";
 
 // ---------------------------------------------------------------- pure functions
 test("pageKey collapses queries, fragments, case and trailing slashes", () => {
@@ -69,6 +69,41 @@ test("mobile-only problems: sideways scrolling and the missing viewport tag", ()
   const m = cap({ facts: { ...cap().facts, overflow: 120, viewportMeta: false } });
   assert.deepEqual(pageIssues(m, { device: "mobile", isStart: true }).map((i) => i.kind).sort(), ["overflow", "viewport"]);
   assert.deepEqual(pageIssues(cap({ facts: { ...cap().facts, overflow: 120 } }), { device: "desktop" }), []); // overflow is judged on mobile only
+});
+
+test("spacing and layout problems are reported on every device, as observations", () => {
+  const n = (text) => ({ tag: "p", text });
+  const layout = { edge: { count: 2, sample: [{ ...n("Win a prize"), gap: 0 }] }, clipped: { count: 1, sample: [n("Terms")] }, overlap: { count: 1, sample: [{ a: n("Play"), b: n("Rules") }] }, tight: { count: 1, sample: [{ a: n("A"), b: n("B"), gap: 2 }] }, cramped: { count: 1, sample: [n("Go")] } };
+  for (const device of ["mobile", "desktop"]) {
+    const found = pageIssues(cap({ facts: { ...cap().facts, layout } }), { device });
+    assert.deepEqual(found.map((i) => i.kind).sort(), ["layout-clipped", "layout-cramped", "layout-edge", "layout-overlap", "layout-tight"]);
+    assert.ok(found.every((i) => i.confidence === "medium"));
+  }
+  assert.deepEqual(pageIssues(cap({ facts: { ...cap().facts, layout: { edge: { count: 0, sample: [] } } } }), { device: "mobile" }), []);
+});
+
+test("the real browser measures padding, clipping, overlap and spacing", async () => {
+  const { Browser } = await import("./browser.mjs");
+  const phone = DEVICES[0];
+  const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>t</title></head><body style="margin:0">'
+    + '<p id="edge" style="margin:0;padding:0">Text with no side padding at all</p>'
+    + '<div style="width:100px;height:20px;overflow:hidden;white-space:nowrap">This sentence is much longer than its box</div>'
+    + '<button style="position:absolute;top:200px;left:20px;width:100px;height:40px">One</button><button style="position:absolute;top:210px;left:60px;width:100px;height:40px">Two</button>'
+    + '<button style="position:absolute;top:300px;left:20px;height:40px;padding:0;border:0;background:#ccc">Cramped</button>'
+    + '<button style="position:absolute;top:360px;left:20px;width:60px;height:40px">A</button><button style="position:absolute;top:360px;left:83px;width:60px;height:40px">B</button></body></html>';
+  const http = (await import("node:http")).default;
+  const srv = http.createServer((q, r) => { r.writeHead(200, { "Content-Type": "text/html" }); r.end(html); }).listen(0, "127.0.0.1");
+  await new Promise((r) => srv.once("listening", r));
+  const b = await new Browser(new NetGuard(["localhost", "127.0.0.1"], { unsafeAllowPrivateForTests: true })).open();
+  try {
+    const cap2 = await b.capture(`http://localhost:${srv.address().port}/`, phone, { inspect: true });
+    const L = cap2.facts.layout;
+    assert.ok(L.edge.count >= 1, "text touching the edge: " + JSON.stringify(L.edge));
+    assert.ok(L.clipped.count >= 1, "clipped text: " + JSON.stringify(L.clipped));
+    assert.ok(L.overlap.count >= 1, "overlapping buttons: " + JSON.stringify(L.overlap));
+    assert.ok(L.tight.count >= 1, "buttons 3px apart: " + JSON.stringify(L.tight));
+    assert.ok(L.cramped.count >= 1, "cramped button: " + JSON.stringify(L.cramped));
+  } finally { await b?.close?.(); srv.close(); }
 });
 
 test("the same problem on several pages becomes one finding that lists them", () => {
@@ -266,4 +301,13 @@ test("images the network guard refused are reported as not loaded, never as brok
     assert.match(note.observed, /127\.0\.0\.1/);
     assert.match(note.suggested_correction, /allowed domains/);
   } finally { srv.close(); }
+});
+
+test("devices: phones and tablets by default, desktop only when asked for, and the first device always runs", () => {
+  assert.equal(pickDevices().length, DEVICES.length);
+  assert.ok(!pickDevices().some((d) => d.family === "Desktop"));
+  assert.deepEqual(pickDevices(undefined, { desktop: true }).map((d) => d.id), [...DEVICES.map((d) => d.id), ...OPTIONAL_DEVICES.map((d) => d.id)]);
+  assert.deepEqual(pickDevices(["pixel-7"]).map((d) => d.id), ["iphone-15", "pixel-7"], "the first device finds the pages, so it is always kept");
+  assert.deepEqual(pickDevices(["pixel-7"], { desktop: true }).map((d) => d.id), ["iphone-15", "pixel-7", "desktop", "laptop"]);
+  assert.ok(DEVICES.every((d) => d.touch), "every default device is a touch device");
 });

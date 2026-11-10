@@ -9,11 +9,11 @@ import { FEEDBACK_STATUS_LABEL } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { TaskList } from "./TaskList";
 
-export function TasksPage() {
+export function TasksPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = React.useState<"tasks" | "feedback">("tasks");
   return (
     <>
-      <PageHeader title="Tasks & Feedback" description="Corrections and work items across campaigns, and client feedback waiting to be actioned." />
+      {!embedded && <PageHeader title="Tasks" description="Corrections and work items across campaigns, and client feedback waiting to be actioned." />}
       <Tabs className="mb-4" value={tab} onChange={setTab} tabs={[{ value: "tasks", label: "Tasks" }, { value: "feedback", label: "Client feedback" }]} />
       {tab === "tasks" ? <TaskList /> : <AllFeedback />}
     </>

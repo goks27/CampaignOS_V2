@@ -73,7 +73,7 @@ export type LiveTestState = { status: "idle" } | {
 };
 export type LiveTestRunSummary = { runId: string; status: Exclude<LiveTestState, { status: "idle" }>["status"]; url: string; deviceLabel: string; campaignId: string; campaignName: string; startedAt: number; finishedAt: number | null; passed: number; total: number };
 /** The automatic run: a URL, and the login details if the site needs them. Every device, every page. */
-export type AutoTestRequest = { mode: "auto"; url: string; credentials?: { username: string; password: string; extra: string }; allowed_domains: string[]; campaign_id?: string; campaign_name?: string; max_pages?: number };
+export type AutoTestRequest = { mode: "auto"; include_desktop?: boolean; url: string; credentials?: { username: string; password: string; extra: string }; allowed_domains: string[]; campaign_id?: string; campaign_name?: string; max_pages?: number };
 export type LiveTestRequest = { campaign_id?: string; campaign_name?: string; url: string; device: string; steps: { action: string; target: string; value?: string; secret?: boolean }[]; inputs: Record<string, { value: string; secret: boolean }>; allowed_domains: string[]; session_token?: string };
 
 const asError = async (r: Response | null, fallback: string) => {
@@ -117,9 +117,11 @@ export const liveTestService = {
 // ---------------------------------------------------------------- Interactive browser (see tools/claude-worker/browsersession.mjs)
 export type BrowserPreset = { id: string; label: string; width: number; height: number; touch: boolean };
 export type BrowserStatus = "launching" | "loading" | "ready" | "error" | "disconnected" | "closed";
+/** What was checked, from the browser process itself, about how the test browser was started. */
+export type BrowserIsolation = { engine: string; version: string; incognito: boolean; temporaryProfile: boolean; usesNormalProfile: boolean; verified: boolean; detail: string };
 export type BrowserState = {
   id: string; status: BrowserStatus; error: string | null; errorCode: string | null; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean;
-  captcha: boolean; paused: boolean; headed?: boolean; device: string; viewport: { width: number; height: number }; locked: boolean; lockedBy: string | null; startedAt: number;
+  captcha: boolean; paused: boolean; headed?: boolean; isolation?: BrowserIsolation | null; device: string; viewport: { width: number; height: number }; locked: boolean; lockedBy: string | null; startedAt: number;
   campaignId: string; campaignName: string; startUrl: string; frameSeq: number; closedReason: string | null;
   counts: { events: number; errors: number; console: number; network: number };
 };
@@ -136,7 +138,8 @@ export type BrowserInput =
   | { type: "click"; fx: number; fy: number; button?: "left" | "right" | "middle"; count?: number }
   | { type: "wheel"; fx: number; fy: number; dx: number; dy: number }
   | { type: "key"; key: string }
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  | { type: "paste"; text: string };
 export type BrowserCommand = { type: "navigate"; url: string } | { type: "reload" } | { type: "back" } | { type: "forward" } | { type: "device"; device: string } | { type: "capture"; note?: string } | { type: "close" };
 
 export const browserService = {
@@ -161,6 +164,12 @@ export const browserService = {
     const r = await call("/browser/input", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...msg }), signal: AbortSignal.timeout(8000) });
     return Boolean(r?.ok);
   },
+  /** The text selected in the page, for Copy. Null when nothing could be read. */
+  async selection(token: string): Promise<string | null> {
+    const r = await call("/browser/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, type: "selection" }), signal: AbortSignal.timeout(8000) });
+    if (!r?.ok) return null;
+    try { return String(((await r.json()) as { text?: string }).text ?? ""); } catch { return null; }
+  },
   async log(token: string, since = 0): Promise<BrowserLog | null> {
     const r = await call(`/browser/log?token=${encodeURIComponent(token)}&since=${since}&net=all`);
     if (!r?.ok) return null;
@@ -178,4 +187,18 @@ export const browserService = {
     try { return (await r.json()) as EmbedCheck; } catch { return null; }
   },
   streamUrl: (token: string) => `${CONNECTOR_URL}/browser/stream?token=${encodeURIComponent(token)}`,
+};
+
+// ---------------------------------------------------------------- API checks (see tools/claude-worker/apirunner.mjs)
+export type ApiAssertion = { name: string; ok: boolean; expected: string; actual: string };
+export type ApiCheckRequest = { method: string; url: string; headers?: Record<string, string>; secret_headers?: string[]; body?: unknown; expect?: { status?: number | number[]; maxMs?: number; json?: { path: string; equals?: unknown; type?: string }[] }; timeout_ms?: number };
+export type ApiCheckResult = { result: "passed" | "failed" | "blocked"; status?: number; ms?: number; error?: string; assertions: ApiAssertion[]; json?: unknown; text?: string; timeout?: boolean };
+
+export const apiCheckService = {
+  /** One request to a staging endpoint, made by the connector on this PC under the same network rules as every test. */
+  async run(request: ApiCheckRequest, allowedDomains: string[]): Promise<ApiCheckResult> {
+    const r = await call("/apitest/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request, allowed_domains: allowedDomains }), signal: AbortSignal.timeout(40_000) });
+    if (!r?.ok) throw await asError(r, "The API check failed");
+    return (await r.json()) as ApiCheckResult;
+  },
 };

@@ -11,7 +11,7 @@ import { useAction } from "@/hooks/useAction";
 import { teamService, type Member } from "@/services/team";
 import { tasksService } from "@/services/tasks";
 
-export function TeamPage() {
+export function TeamPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { isAdmin, me } = useAuth();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: qk.members, queryFn: teamService.members });
   const { data: campaigns } = useCampaigns();
@@ -29,7 +29,7 @@ export function TeamPage() {
 
   return (
     <>
-      <PageHeader title="Team" description="Everyone in the workspace, their role and current workload." />
+      {!embedded && <PageHeader title="Team" description="Everyone in the workspace, their role and current workload." />}
       {error ? <ErrorState error={error} onRetry={() => void refetch()} /> : isLoading ? <LoadingRows /> : (
         <Table>
           <thead><tr><Th>Person</Th><Th>Role</Th><Th>Campaigns</Th><Th>Open tasks</Th><Th>Joined</Th><Th>Status</Th>{isAdmin && <Th />}</tr></thead>

@@ -1,3 +1,4 @@
+import { autoReviewNote } from "@/lib/autoReview";
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +25,7 @@ import { findingsService } from "@/services/findings";
 import { jobsService } from "@/services/jobs";
 import { tasksService } from "@/services/tasks";
 import { validateFile } from "@/services/storage";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { AssetImage } from "@/features/shared/AssetImage";
 import { RequirementsTab } from "@/features/campaigns/tabs/RequirementsTab";
 import { DesignsTab, UploadDialog } from "@/features/campaigns/tabs/DesignsTab";
@@ -90,8 +91,8 @@ function SowNode() {
       footer={canEdit && <>
         <input ref={input} type="file" className="hidden" onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (f.length) dropSow(f); }} />
         <Button size="sm" loading={busySow} onClick={() => input.current?.click()}><FileUp />{latest ? "New file" : "Upload SOW"}</Button>
-        {latest && !s.sow.working && <RunReviewButton size="sm" variant={latest.version.extraction_status === "extracted" ? "ghost" : "primary"} campaignId={c.id} reviewType="sow_analysis"
-          source={{ sow_version_id: latest.version.id }} label={latest.version.extraction_status === "extracted" ? "Analyse again" : "Analyse"} />}
+        {latest && !s.sow.working && <ReviewActionButton size="sm" variant={latest.version.extraction_status === "extracted" ? "ghost" : "primary"} campaignId={c.id} action="check_sow"
+          source={{ sow_version_id: latest.version.id }} label={latest.version.extraction_status === "extracted" ? "Check again" : "Check SOW"} />}
       </>}>
       {latest ? (
         <>
@@ -131,10 +132,7 @@ function DesignsNode() {
       status={sub && <StatusDot tone={SUBMISSION_STATUS_TONE[sub.status]} label={SUBMISSION_STATUS_LABEL[sub.status]} className="text-xs" />}
       footer={<>
         {canSubmit && <Button size="sm" onClick={() => openPanel("designs")}><ImagePlus />{sub ? "Manage" : "Add screens"}</Button>}
-        {canEdit && sub && !s.designs.working && <>
-          <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="sow_vs_design" source={{ design_submission_id: sub.id }} label="Check vs SOW" />
-          <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="design_consistency" source={{ design_submission_id: sub.id }} label="Consistency" />
-        </>}
+        {canEdit && sub && !s.designs.working && <ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="review_designs" source={{ design_submission_id: sub.id }} />}
       </>}>
       {sub ? (
         <>
@@ -163,12 +161,7 @@ function BuildNode() {
       status={b && <StatusDot tone={SUBMISSION_STATUS_TONE[b.status]} label={SUBMISSION_STATUS_LABEL[b.status]} className="text-xs" />}
       footer={canEdit && <>
         <Button size="sm" variant={b ? "secondary" : "primary"} onClick={addBuild}><Globe />{b ? "New build" : "Add staging URL"}</Button>
-        {b && !s.build.working && <>
-          <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="site_check" source={{ development_submission_id: b.id }} label="Test now" />
-          <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: b.id }} label="Visual" />
-          <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: b.id }} label="Scenarios" />
-          <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="sow_vs_development" source={{ development_submission_id: b.id }} label="SOW" />
-        </>}
+        {b && !s.build.working && <ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="test_build" source={{ development_submission_id: b.id }} />}
       </>}>
       {b ? (
         <>
@@ -269,7 +262,7 @@ export function PipelineCanvas({ campaign: c, selector }: { campaign: CampaignWi
 
   const upload = useAction(({ file, docId }: { file: File; docId?: string }) => sowService.upload(c.id, file, docId), {
     invalidate: [qk.sow(c.id)], error: "Upload failed",
-    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}${r.autoQueued ? ". Claude is analysing it" : ". Press Analyse to start"}.`,
+    success: (r) => `SOW v${r.version.version_no} uploaded${r.converted ? " and converted to PDF" : ""}. ${autoReviewNote("sow", r.autoQueued)}`,
     onSuccess: () => setPendingSow(null),
   });
   const dropSow = (files: File[]) => {

@@ -1,33 +1,39 @@
 /**
- * Campaign navigation rules. A campaign has eight sections; the canvas is its home. The old tab addresses still work
- * (bookmarks, notification links, the assistant's links) and are sent to the section that now holds that content.
+ * Campaign navigation rules. A campaign follows five steps: Brief, Requirements, Design, Build & test, Launch. Tasks and Activity are a
+ * side panel, not steps. The old addresses (the eight sections and the ten tabs before them) still work: bookmarks, notification links
+ * and the assistant's links are sent to the step that holds that content now.
  */
-export const SECTIONS = ["canvas", "requirements", "designs", "review", "development", "testing", "issues", "activity"] as const;
-export type Section = (typeof SECTIONS)[number];
+export const STEPS = ["brief", "requirements", "design", "build", "launch"] as const;
+export type Step = (typeof STEPS)[number];
+export const STEP_LABEL: Record<Step, string> = { brief: "Brief", requirements: "Requirements", design: "Design", build: "Build & test", launch: "Launch" };
 
-export const SECTION_LABEL: Record<Section, string> = {
-  canvas: "Canvas", requirements: "Requirements", designs: "Designs", review: "Review", development: "Development", testing: "Testing", issues: "Issues", activity: "Activity",
+export type Panel = "tasks" | "activity";
+
+/** Old address -> where it lands now. A tab that became the side panel keeps its name in the panel. */
+const LEGACY: Record<string, { step: Step; panel?: Panel }> = {
+  canvas: { step: "brief" }, overview: { step: "brief" }, journeys: { step: "brief" },
+  documents: { step: "requirements" },
+  designs: { step: "design" },
+  development: { step: "build" }, testing: { step: "build" }, live: { step: "build" },
+  review: { step: "launch" }, approvals: { step: "launch" }, "ai-reviews": { step: "build" },
+  issues: { step: "brief", panel: "tasks" }, tasks: { step: "brief", panel: "tasks" }, activity: { step: "brief", panel: "activity" },
 };
 
-/** Old tab -> the section that holds its content now. */
-export const LEGACY_TAB: Record<string, Section> = {
-  overview: "canvas", journeys: "canvas", approvals: "review", documents: "requirements", "ai-reviews": "review", tasks: "issues",
-};
-
-export function resolveSection(tab: string | undefined): { section: Section; redirect: boolean } {
-  if (!tab) return { section: "canvas", redirect: false };
-  if ((SECTIONS as readonly string[]).includes(tab)) return { section: tab as Section, redirect: false };
-  if (tab in LEGACY_TAB) return { section: LEGACY_TAB[tab]!, redirect: true };
-  return { section: "canvas", redirect: true }; // an unknown address lands on the canvas, never on an empty page
+export function resolveStep(tab: string | undefined): { step: Step; panel?: Panel; redirect: boolean } {
+  if (!tab) return { step: "brief", redirect: false };
+  if ((STEPS as readonly string[]).includes(tab)) return { step: tab as Step, redirect: false };
+  const old = LEGACY[tab];
+  if (old) return { ...old, redirect: true };
+  return { step: "brief", redirect: true }; // an unknown address lands on the brief, never on an empty page
 }
 
-export const campaignPath = (id: string, section: Section = "canvas") => (section === "canvas" ? `/campaigns/${id}` : `/campaigns/${id}/${section}`);
+export const campaignPath = (id: string, step: Step = "brief") => (step === "brief" ? `/campaigns/${id}` : `/campaigns/${id}/${step}`);
 
-/** The campaign id and section of an address, or null when it is not a campaign page. */
-export function parseCampaignPath(pathname: string): { id: string; section: Section } | null {
+/** The campaign id and step of an address, or null when it is not a campaign page. */
+export function parseCampaignPath(pathname: string): { id: string; step: Step } | null {
   const m = pathname.match(/^\/campaigns\/([^/?#]+)(?:\/([^/?#]+))?/);
   if (!m) return null;
-  return { id: m[1]!, section: resolveSection(m[2]).section };
+  return { id: m[1]!, step: resolveStep(m[2]).step };
 }
 
 // ---------------------------------------------------------------- recently opened campaigns (per browser, never shared)

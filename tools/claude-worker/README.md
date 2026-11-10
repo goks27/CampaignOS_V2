@@ -155,6 +155,10 @@ A site check opens every page it finds on sixteen emulated phones and tablets, i
 
 ## Live test
 
+**Incognito and isolation.** Every test browser is started with `--incognito` and a temporary profile (`isolation.mjs`). Run `node --test tools/claude-worker/isolation.test.mjs` to see it proven on this PC: the test reads the real browser process's flags and checks that your own Chrome profile is untouched and that the temporary profile is deleted when the browser closes. Set `JOURNEY_BROWSER=chromium` to use the bundled Chromium instead of Google Chrome.
+
+**API checks.** `POST /apitest/run` (localhost only, same origin and Host checks) sends one request to a staging endpoint and asserts on the answer: status, time, JSON values and types, shape. See `apirunner.mjs` and its tests.
+
 **Interactive preview.** `POST /browser/open` returns a token at once and launches Chromium in the background; `GET /browser/stream?token=` is an event stream (`frame`, `state`, `event`, `evidence`, `closed`); `POST /browser/input` takes `click`, `wheel`, `key` and `text` with `fx`/`fy` fractions; `POST /browser/command` takes `navigate`, `reload`, `back`, `forward`, `device`, `capture` and `close`; `GET /browser/log?token=&since=&net=all` returns events, console and network; `GET /browser/shot?token=&id=` returns the evidence picture. One session at a time, tokens are random and per session, nothing is written to disk, and everything is gone when it closes or the connector stops. A Live test with `session_token` runs its steps in that same browser and locks it meanwhile.
 The dashboard's Live test page starts a run through `POST /livetest/start`, polls `GET /livetest`, answers a question with `POST /livetest/answer`, and stops with `POST /livetest/stop`. Everything is held in memory until the next run. It needs the browser installed once (`npm run claude:browser`).
 

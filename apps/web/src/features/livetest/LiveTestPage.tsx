@@ -184,6 +184,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
   const [saving, setSaving] = React.useState(false);
   const [pick, setPick] = React.useState<"browser" | "run" | null>(null);
   const [previewDevice, setPreviewDevice] = React.useState("iphone-15");
+  const [withDesktop, setWithDesktop] = React.useState(false);
   const [embedNote, setEmbedNote] = React.useState<string | null>(null);
   const browser = useBrowserSession();
   const { isAdmin, me } = useAuth();
@@ -274,7 +275,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
       : "A live picture of a real browser on this PC, so clicks, tests and error capture happen in the same page.");
   };
   const autoBlocker = !looksLikeUrl(url) ? "Enter the staging URL, starting with https://" : loginProblem(creds);
-  const startAuto = useAction((override?: string) => liveTestService.start(autoRequest(override ?? url, creds, allowed, campaignId ? { id: campaignId, name: campaignName } : undefined)), { error: "Could not start", onSuccess: () => { setPick("run"); refresh(); } });
+  const startAuto = useAction((override?: string) => liveTestService.start(autoRequest(override ?? url, creds, allowed, campaignId ? { id: campaignId, name: campaignName } : undefined, withDesktop)), { error: "Could not start", onSuccess: () => { setPick("run"); refresh(); } });
 
   // Pasting a web address starts the test straight away; so does Enter. Typing alone never does.
   const onPasteUrl = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -346,6 +347,7 @@ export function LiveTest({ campaign }: { campaign?: CampaignWithRelations }) {
                   options={presetList.map((p) => ({ value: p.id, label: `${p.label} ${p.width}×${p.height}` }))} />
               </Field>
 
+              <Checkbox checked={withDesktop} disabled={active} onChange={(e) => setWithDesktop(e.target.checked)} label={<span>Also test on desktop <span className="text-xs text-muted">(optional: phones and tablets are always tested)</span></span>} />
               <details className="group rounded-box border border-line" data-testid="login-details">
                 <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm"><ChevronRight className="size-4 text-muted transition-transform group-open:rotate-90" />Add details in advance<span className="text-xs text-muted">(optional)</span></summary>
                 <div className="space-y-2 border-t border-line p-3">

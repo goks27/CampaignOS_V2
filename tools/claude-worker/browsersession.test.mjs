@@ -67,7 +67,7 @@ test("clicks, scrolls, back, forward and reload all work in the page", { skip },
   await m.input(t, { type: "click", ...(await at(m, t, "#about")) });
   await until(() => m.state(t).url === base + "/about");
   const s = await ready(m, t);
-  assert.equal(s.title, "/about");
+  assert.equal(await until(() => (m.state(t).title === "/about" ? "/about" : null)), "/about", "the title follows the page"); // a moment after the page is ready
   assert.equal(s.canGoBack, true);
   await m.back(t);
   await until(() => m.state(t).url === base + "/");
@@ -100,6 +100,18 @@ test("typing and submitting a form reaches the website", { skip }, async () => {
   await m.input(t, { type: "key", key: "Enter" });
   await until(() => posts.some((p) => p.name === "Ravi Kumar"));
   await until(async () => (await m.page(t).locator("#done").count()) === 1);
+  await m.closeAll();
+});
+
+test("paste inserts text in one go, and copy reads what is selected", { skip }, async () => {
+  const m = make();
+  const t = await open(m);
+  await m.input(t, { type: "click", ...(await at(m, t, "#name")) });
+  await m.input(t, { type: "paste", text: "line one\nÅsa 9876543210" });
+  // a single-line field may drop the newline; the text still arrives
+  assert.match(await m.page(t).inputValue("#name"), /Åsa 9876543210$/);
+  await m.input(t, { type: "key", key: "Control+a" });
+  assert.match((await m.selection(t)).text, /Åsa 9876543210$/);
   await m.closeAll();
 });
 
@@ -256,9 +268,9 @@ test("stopping closes the browser and cleans up; an idle preview closes itself",
   assert.throws(() => m.state(t), /no open preview/);
   await until(() => page.isClosed());
 
-  const idle = make({ idleMs: 400, sweepMs: 80 });
+  const idle = make({ idleMs: 4000, sweepMs: 100 }); // long enough for Chrome to start before the idle clock matters
   const r = await idle.open({ url: base + "/" }); await ready(idle, r.token);
-  await until(() => !idle.active(), 5000);
+  await until(() => !idle.active(), 12_000);
   await idle.closeAll();
 });
 

@@ -132,9 +132,9 @@ export function PageHeader({ title, description, actions }: { title: string; des
   );
 }
 
-export function Section({ title, actions, children, className }: { title: string; actions?: React.ReactNode; children: React.ReactNode; className?: string }) {
+export function Section({ title, actions, children, className, id }: { title: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
   return (
-    <section className={cn("mb-6", className)}>
+    <section id={id} className={cn("mb-6 scroll-mt-4", className)}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="section-title">{title}</h2>
         {actions}

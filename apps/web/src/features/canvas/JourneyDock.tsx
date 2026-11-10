@@ -9,7 +9,7 @@ import { cn, formatDate, timeAgo } from "@/lib/utils";
 import { useProfiles } from "@/hooks/queries";
 import { activityService } from "@/services/activity";
 import type { CampaignWithRelations } from "@/services/campaigns";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { AssetImage } from "@/features/shared/AssetImage";
 import { describeActivity } from "@/features/shared/activity";
 import type { JourneyModel } from "./journeyModel";
@@ -72,7 +72,7 @@ export function JourneyDock({ campaign: c, model, onSelectScreen }: { campaign: 
             <Card className="w-[320px] flex-col justify-between">
               <div><p className="text-sm font-medium">Run a new AI review</p><p className="mt-1 text-xs text-muted">Compare the designs and the accepted requirements. Findings arrive as drafts for a manager.</p></div>
               {canEdit && model.submission && !model.working.design
-                ? <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="sow_vs_design" source={{ design_submission_id: model.submission.id }} label="Run review" />
+                ? <ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="review_designs" source={{ design_submission_id: model.submission.id }} />
                 : <p className="text-xs text-muted">{model.working.design ? "Claude is working on it." : "Submit designs for this journey first."}</p>}
             </Card>
           </>}
@@ -95,7 +95,7 @@ export function JourneyDock({ campaign: c, model, onSelectScreen }: { campaign: 
             ))}
             {!model.tests.total && <Card className="w-[360px]"><p className="text-sm text-text-2">No test scenarios for this journey yet. Add them in Testing.</p></Card>}
             {canEdit && model.build && model.tests.total > 0 && !model.working.build && (
-              <Card className="w-[260px] flex-col justify-between"><p className="text-sm font-medium">Run the scenarios again</p><RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: model.build.id }} label="Run scenarios" /></Card>
+              <Card className="w-[260px] flex-col justify-between"><p className="text-sm font-medium">Test the build again</p><ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="test_build" source={{ development_submission_id: model.build.id }} /></Card>
             )}
           </>}
           {tab === "activity" && (

@@ -2,7 +2,7 @@ import { Command } from "cmdk";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
 import { FlaskConical, Radio, FolderKanban, Inbox, ListChecks, Plus, Sparkles, Users, CalendarRange, BarChart3, Settings } from "lucide-react";
-import { SECTIONS, SECTION_LABEL, parseCampaignPath, campaignPath } from "@/lib/nav";
+import { STEPS, STEP_LABEL, parseCampaignPath, campaignPath } from "@/lib/nav";
 import { useLocation } from "react-router-dom";
 import { useCampaigns } from "@/hooks/queries";
 import { useAuth } from "@/lib/auth";
@@ -37,7 +37,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               )}
               {here && (
                 <Command.Group heading="This campaign" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">
-                  {SECTIONS.map((s) => <Command.Item key={s} value={`campaign ${SECTION_LABEL[s]}`} className={item} onSelect={() => go(campaignPath(here.id, s))}><FolderKanban />{SECTION_LABEL[s]}</Command.Item>)}
+                  {STEPS.map((s) => <Command.Item key={s} value={`campaign ${STEP_LABEL[s]}`} className={item} onSelect={() => go(campaignPath(here.id, s))}><FolderKanban />{STEP_LABEL[s]}</Command.Item>)}
                 </Command.Group>
               )}
               <Command.Group heading="Projects" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted">

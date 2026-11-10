@@ -20,13 +20,13 @@ import { ScreenshotViewer, type Overlay, type Region } from "./ScreenshotViewer"
 
 type Filters = { q: string; campaign: string; severity: Severity | ""; type: ReviewType | ""; owner: string; status: FindingStatus | "" | "open"; since: string; job: string };
 
-export function ReviewsPage() {
+export function ReviewsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [params, setParams] = useSearchParams();
   const view = params.get("view") === "queue" ? "queue" : "inbox";
   return (
     <>
-      <PageHeader title="AI Reviews" description="AI does the analysis; you decide. Nothing here is approved or assigned without a manager." />
-      <Tabs className="mb-4" value={view} onChange={(v) => setParams(v === "queue" ? { view: "queue" } : {})}
+      {!embedded && <PageHeader title="Findings" description="Claude’s findings are drafts. Nothing is approved or assigned until you decide." />}
+      <Tabs className="mb-4" value={view} onChange={(v) => setParams((cur) => { const n = new URLSearchParams(cur); if (v === "queue") n.set("view", "queue"); else n.delete("view"); return n; })}
         tabs={[{ value: "inbox", label: "Findings Inbox" }, { value: "queue", label: "Review queue" }]} />
       {view === "queue" ? <JobsTable /> : <FindingsInbox />}
     </>

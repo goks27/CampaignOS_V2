@@ -4,16 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Link2, MoreHorizontal, Pencil, Route, Share2, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { qk, useCampaign } from "@/hooks/queries";
-import { HEALTH_LABEL, HEALTH_TONE } from "@/lib/labels";
 import { campaignPath } from "@/lib/nav";
-import { Avatar, DemoBadge, Pill } from "@/components/common";
+import { Avatar, DemoBadge } from "@/components/common";
 import { CampaignGlyph } from "@/components/brand";
 import { useToast } from "@/components/toast";
 import { Button, Drawer, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui";
 import { developmentService } from "@/services/development";
 import type { CampaignWithRelations } from "@/services/campaigns";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { CampaignFormDialog } from "./CampaignForm";
+import { StatusChips } from "./StatusChips";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { JourneysTab } from "./tabs/JourneysTab";
 
@@ -30,7 +30,7 @@ function Team({ c }: { c: CampaignWithRelations }) {
   );
 }
 
-/** "Run tests" starts a Site check on the latest build. With no build yet it takes you to add one. */
+/** "Test build" runs every check that applies to the latest build. With no build yet it takes you to add one. */
 function RunTests({ c }: { c: CampaignWithRelations }) {
   const { canEdit } = useAuth();
   const navigate = useNavigate();
@@ -38,8 +38,8 @@ function RunTests({ c }: { c: CampaignWithRelations }) {
   if (!canEdit) return null;
   const build = subs.data?.[0];
   return build
-    ? <RunReviewButton size="sm" campaignId={c.id} reviewType="site_check" source={{ development_submission_id: build.id }} label="Run tests" />
-    : <Button size="sm" onClick={() => navigate(campaignPath(c.id, "development"))}>Run tests</Button>;
+    ? <ReviewActionButton size="sm" campaignId={c.id} action="test_build" source={{ development_submission_id: build.id }} />
+    : <Button size="sm" onClick={() => navigate(campaignPath(c.id, "build"))}>Submit a build</Button>;
 }
 
 /** The top bar inside a campaign: where you are, who is on it, and the actions that matter. */
@@ -67,12 +67,12 @@ export function CampaignBar({ id }: { id: string }) {
             <CampaignGlyph id={c.id} name={c.name} size={22} />
             <h1 className="truncate text-[15px] font-semibold">{c.name}</h1>
             {c.is_demo && <DemoBadge />}
-            <span className="hidden lg:inline"><Pill tone={HEALTH_TONE[c.health]}>{HEALTH_LABEL[c.health]}</Pill></span>
           </>
         ) : <span className="h-4 w-32 animate-pulse rounded bg-hover" />}
       </div>
       {c && (
         <>
+          <StatusChips c={c} />
           <Team c={c} />
           <Button size="sm" className="hidden md:inline-flex" onClick={() => void copy()} title="Copy a link to this campaign"><Share2 />Share</Button>
           <span className="hidden md:contents"><RunTests c={c} /></span>

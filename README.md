@@ -27,6 +27,11 @@ cp apps/web/.env.example apps/web/.env.local   # paste the anon key that `supaba
 npm run dev                          # http://localhost:5173
 ```
 
+### Migrations to run on a hosted Supabase project, in this order (each once, in the SQL editor)
+
+After the original ones, the newer files are: `20261104000300_site_check.sql`, `20261105000100_journey_graph.sql`, `20261105000200_brand_assets.sql`, `20261106000100_live_test_sessions.sql` (saved Live test sessions), `20261106000200_simplify.sql` (Phase 6: automatic reviews on by default, `enqueue_reviews`, `campaign_progress`, `home_summary`, `portfolio_report`), `20261107000100_rules_lab.sql` (rule scenarios and runs). A file that says "already exists" has already been run.
+
+
 Demo logins (local only, password `campaignos-demo`): admin@ / manager@ / designer@ / developer@ / viewer@campaignos.local. The seed adds one clearly fake "Sample campaign".
 
 Checks:
@@ -56,7 +61,7 @@ cd services/local-ai-worker && ruff check app tests && mypy && pytest
 apps/web/                  React app (services/* is the only code that talks to Supabase)
 services/local-ai-worker/  Python worker, prompts, benchmark, Windows scripts
 supabase/migrations/       Schema, RLS, job functions, storage policies, journey graph (run new files once in the Supabase SQL editor on a hosted project)
-supabase/tests/            pgTAP tests (permissions, jobs, worker isolation)
+supabase/tests/            pgTAP tests (permissions, jobs, worker isolation) and simplify.pglite.test.mjs, which runs every migration on an in-memory Postgres: npm run db:test (no Docker)
 supabase/seed.sql          Local-only demo data
 docs/                      PRD, build plan, design system, setup and deploy guides
 ```

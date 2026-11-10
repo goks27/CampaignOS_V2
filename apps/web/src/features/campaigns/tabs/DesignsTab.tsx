@@ -1,3 +1,4 @@
+import { autoReviewNote } from "@/lib/autoReview";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, FileUp, Frame as Figma, ImagePlus, RotateCcw, Trash2, X } from "lucide-react";
@@ -14,7 +15,7 @@ import { validateFile } from "@/services/storage";
 import { pdfToImages, prepareImage } from "@/lib/images";
 import { useToast } from "@/components/toast";
 import type { CampaignWithRelations } from "@/services/campaigns";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { AssetImage } from "@/features/shared/AssetImage";
 
 const SCREEN_TYPES = ["screen", "modal", "form", "error state", "success state", "email", "landing", "other"].map((v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
@@ -66,8 +67,7 @@ function SubmissionCard({ campaign: c, sub, onView }: { campaign: CampaignWithRe
         <div className="flex-1" />
         {canEdit && sub.status !== "superseded" && (
           <div className="flex flex-wrap gap-1.5">
-            <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="sow_vs_design" source={{ design_submission_id: sub.id }} label="SOW vs Design" />
-            <RunReviewButton size="sm" campaignId={c.id} reviewType="design_consistency" source={{ design_submission_id: sub.id }} label="Consistency" />
+            <ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="review_designs" source={{ design_submission_id: sub.id }} />
             {sub.status !== "approved" && <Button size="sm" onClick={() => setDeciding("approved")}><Check />Approve</Button>}
             {sub.status !== "changes_requested" && <Button size="sm" onClick={() => setDeciding("changes_requested")}><RotateCcw />Request changes</Button>}
           </div>
@@ -170,7 +170,7 @@ export function UploadDialog({ campaign: c, onClose, initialFiles, defaultJourne
     figmaUrl: mode === "figma" ? figmaUrl : undefined, screens: mode === "figma" ? [] : screens, onProgress: setProgress,
   }), {
     invalidate: [qk.designs(c.id)], error: "Submission failed",
-    success: (r) => `Design submission v${r.submission.version_no} saved${r.autoQueued ? `; ${r.autoQueued} review(s) queued automatically` : ""}.`, onSuccess: onClose,
+    success: (r) => `Design submission v${r.submission.version_no} saved. ${autoReviewNote("design", r.autoQueued)}`, onSuccess: onClose,
   });
 
   const tooMany = screens.length > (limits.max_screens_per_review ?? 12);

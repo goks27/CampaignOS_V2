@@ -18,6 +18,10 @@ export const deliveryService = {
   async feedback(campaignId: string) {
     return must(await supabase.from("client_feedback").select("*").eq("campaign_id", campaignId).order("received_on", { ascending: false }));
   },
+  /** Client feedback still open, across every campaign the person can see. */
+  async openFeedback() {
+    return must(await supabase.from("client_feedback").select("*, campaigns(name)").eq("status", "open").order("received_on", { ascending: false }).limit(50)) as unknown as (ClientFeedback & { campaigns: { name: string } | null })[];
+  },
   async saveFeedback(input: Insert<"client_feedback"> & { id?: string }) {
     const { id, ...rest } = input;
     if (id) return must(await supabase.from("client_feedback").update(rest).eq("id", id).select().single());

@@ -127,6 +127,30 @@ export function pageIssues(cap, { device = "desktop", isStart = false, touch = d
     add({ kind: "targets", key: `targets:${where}`, severity: "low", confidence: "medium", title: `Small tap targets: ${where}`,
       observed: `${f.smallTargets} buttons, links or fields are smaller than about 32px, which is hard to tap.`, expected: "Tap targets of about 44px (iOS) or 48px (Android).", fix: "Make the buttons, links and fields taller or add padding around them." });
   }
+  // Spacing and layout, judged on every device. These are OBSERVED from measurements, never proof of a bug, so confidence is medium.
+  const L = f.layout ?? {};
+  const txt = (n) => (n.text ? ` "${n.text}"` : "");
+  const list = (arr, fn) => (arr ?? []).slice(0, 3).map(fn).join(", ");
+  if (L.edge?.count > 0) {
+    add({ kind: "layout-edge", key: `layout-edge:${where}`, severity: "low", confidence: "medium", title: `Text touches the screen edge: ${where}`,
+      observed: `${L.edge.count} piece(s) of text sit less than 6px from the edge of the screen, for example ${list(L.edge.sample, (n) => `${n.tag}${txt(n)} (${n.gap}px)`)}.`, expected: "Text has at least 12 to 16px of space from the screen edge.", fix: "Add left and right padding to the container." });
+  }
+  if (L.clipped?.count > 0) {
+    add({ kind: "layout-clipped", key: `layout-clipped:${where}`, severity: "medium", confidence: "medium", title: `Text or content is cut off: ${where}`,
+      observed: `${L.clipped.count} element(s) hide part of their content, for example ${list(L.clipped.sample, (n) => `${n.tag}${txt(n)}`)}.`, expected: "All text is fully visible or ends in an ellipsis on purpose.", fix: "Let the element grow, wrap the text, or remove the fixed height or width." });
+  }
+  if (L.overlap?.count > 0) {
+    add({ kind: "layout-overlap", key: `layout-overlap:${where}`, severity: "medium", confidence: "medium", title: `Buttons or fields overlap: ${where}`,
+      observed: `${L.overlap.count} pair(s) of buttons, links or fields overlap, for example ${list(L.overlap.sample, (p) => `${p.a.tag}${txt(p.a)} over ${p.b.tag}${txt(p.b)}`)}.`, expected: "Controls do not cover each other.", fix: "Check positioning, negative margins and fixed heights around these controls." });
+  }
+  if (L.tight?.count > 0) {
+    add({ kind: "layout-tight", key: `layout-tight:${where}`, severity: "low", confidence: "medium", title: `Tap targets too close together: ${where}`,
+      observed: `${L.tight.count} pair(s) of small controls are less than 6px apart, for example ${list(L.tight.sample, (p) => `${p.a.tag}${txt(p.a)} and ${p.b.tag}${txt(p.b)} (${p.gap}px)`)}.`, expected: "At least 8px between tap targets so the wrong one is not hit.", fix: "Add margin or gap between the controls." });
+  }
+  if (L.cramped?.count > 0) {
+    add({ kind: "layout-cramped", key: `layout-cramped:${where}`, severity: "low", confidence: "medium", title: `Button text has no padding: ${where}`,
+      observed: `${L.cramped.count} button(s) have text almost touching their edge, for example ${list(L.cramped.sample, (n) => `${n.tag}${txt(n)}`)}.`, expected: "Buttons have padding around their label (about 12px sideways, 8px up and down).", fix: "Add padding to the button." });
+  }
   if (touch && f.tinyText > 5) {
     add({ kind: "tiny", key: `tiny:${where}`, severity: "low", confidence: "medium", title: `Very small text: ${where}`,
       observed: `${f.tinyText} pieces of text are smaller than 11px.`, expected: "Body text of about 14px or more on a phone.", fix: "Increase the font size for small screens." });
@@ -240,7 +264,7 @@ export function loginFinding(login, startUrl) {
 export async function siteCheck(run, browser) {
   const inp = run.brief.input;
   const maxPages = Math.max(1, Math.min(30, Number(inp.limits?.site_check_max_pages) || DEFAULT_MAX_PAGES));
-  const devices = pickDevices(inp.limits?.site_check_devices);
+  const devices = pickDevices(inp.limits?.site_check_devices, { desktop: inp.limits?.site_check_desktop === true });
   const labels = devices.map((d) => d.label);
   const startUrl = new URL(String(inp.staging_url)).toString();
   const hasLogin = Boolean(run.creds?.username && run.creds?.password);

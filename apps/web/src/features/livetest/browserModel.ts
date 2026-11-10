@@ -10,7 +10,9 @@ const SPECIAL = new Set(["Enter", "Backspace", "Tab", "Escape", "Delete", "Home"
 /** What a key press means for the page, or null when it should be ignored (shortcuts, modifiers, function keys). */
 export function keyInput(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): BrowserInput | null {
   if (SPECIAL.has(e.key)) return { type: "key", key: e.key };
-  if ((e.ctrlKey || e.metaKey) && /^[acvxz]$/i.test(e.key)) return { type: "key", key: `${e.metaKey ? "Meta" : "Control"}+${e.key.toLowerCase()}` };
+  // copy, cut and paste go through the dashboard's own clipboard (see BrowserWorkspace), not the browser's
+  if ((e.ctrlKey || e.metaKey) && /^[cvx]$/i.test(e.key)) return null;
+  if ((e.ctrlKey || e.metaKey) && /^[az]$/i.test(e.key)) return { type: "key", key: `${e.metaKey ? "Meta" : "Control"}+${e.key.toLowerCase()}` };
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   if (e.key.length === 1) return { type: "text", text: e.key };
   return null;

@@ -10,7 +10,7 @@ import { PRIORITY_LABEL, SUBMISSION_STATUS_LABEL, TASK_STATUS_LABEL, TASK_STATUS
 import { formatDate } from "@/lib/utils";
 import type { CampaignWithRelations } from "@/services/campaigns";
 import { tasksService } from "@/services/tasks";
-import { RunReviewButton } from "@/features/shared/RunReview";
+import { ReviewActionButton } from "@/features/shared/RunReview";
 import { AssetImage, useSignedUrl } from "@/features/shared/AssetImage";
 import { FindingList } from "./FindingList";
 import { UNASSIGNED, type JourneyModel, type ScreenModel } from "./journeyModel";
@@ -89,9 +89,8 @@ export function Inspector({ campaign: c, model, journeyName, screen, onClose, on
 
   const actions = canEdit && (
     <div className="flex flex-wrap gap-1.5">
-      {sub && !model.working.design && <RunReviewButton size="sm" variant="primary" campaignId={c.id} reviewType="sow_vs_design" source={{ design_submission_id: sub.id }} label="Check designs vs SOW" />}
-      {build && !model.working.build && <RunReviewButton size="sm" variant={sub ? "secondary" : "primary"} campaignId={c.id} reviewType="site_check" source={{ development_submission_id: build.id }} label="Test now" />}
-      {build && sub && !model.working.build && <RunReviewButton size="sm" variant="ghost" campaignId={c.id} reviewType="design_vs_development" source={{ development_submission_id: build.id }} label="Compare with built page" />}
+      {sub && !model.working.design && <ReviewActionButton size="sm" variant="primary" campaignId={c.id} action="review_designs" source={{ design_submission_id: sub.id }} />}
+      {build && !model.working.build && <ReviewActionButton size="sm" variant={sub ? "secondary" : "primary"} campaignId={c.id} action="test_build" source={{ development_submission_id: build.id }} />}
     </div>
   );
 
@@ -200,7 +199,7 @@ export function Inspector({ campaign: c, model, journeyName, screen, onClose, on
                 <StatusDot tone={r.result === "verified" ? "green" : r.result === "failed" ? "red" : r.result === "blocked" ? "amber" : "gray"} label={`${r.title} · ${r.result === "verified" ? "Passed" : r.result === "failed" ? "Failed" : r.result === "blocked" ? "Blocked" : "Not run"}`} />
                 {r.actual && r.result !== "verified" && <p className="mt-0.5 text-xs text-muted">{r.actual}</p>}
               </li>))}</ul> : <p className="text-sm text-text-2">No scenarios for this journey yet. Add them on the Development tab.</p>}
-            {canEdit && build && t.total > 0 && !model.working.build && <RunReviewButton size="sm" campaignId={c.id} reviewType="functional_qa" source={{ development_submission_id: build.id }} label="Run scenarios" />}
+            {canEdit && build && t.total > 0 && !model.working.build && <ReviewActionButton size="sm" campaignId={c.id} action="test_build" source={{ development_submission_id: build.id }} />}
           </div>
         )}
         {tab === "tasks" && (

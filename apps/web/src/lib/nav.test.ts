@@ -1,23 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { campaignPath, LEGACY_TAB, parseCampaignPath, pushRecent, resolveSection, SECTIONS } from "./nav";
+import { campaignPath, parseCampaignPath, pushRecent, resolveStep, STEPS } from "./nav";
 
-describe("resolveSection", () => {
-  it("opens the canvas by default and keeps current sections as they are", () => {
-    expect(resolveSection(undefined)).toEqual({ section: "canvas", redirect: false });
-    for (const s of SECTIONS) expect(resolveSection(s)).toEqual({ section: s, redirect: false });
+describe("resolveStep", () => {
+  it("opens the brief by default and keeps the five steps as they are", () => {
+    expect(resolveStep(undefined)).toEqual({ step: "brief", redirect: false });
+    expect(STEPS).toEqual(["brief", "requirements", "design", "build", "launch"]);
+    for (const s of STEPS) expect(resolveStep(s)).toEqual({ step: s, redirect: false });
   });
-  it("sends every old tab to the section that holds its content now", () => {
-    expect(resolveSection("overview")).toEqual({ section: "canvas", redirect: true });
-    expect(resolveSection("journeys").section).toBe("canvas");
-    expect(resolveSection("approvals").section).toBe("review");
-    expect(resolveSection("ai-reviews").section).toBe("review");
-    expect(resolveSection("documents").section).toBe("requirements");
-    expect(resolveSection("tasks").section).toBe("issues");
-    // no old tab is lost and none points at a section that does not exist
-    for (const to of Object.values(LEGACY_TAB)) expect(SECTIONS).toContain(to);
+
+  it("sends every old section and tab to the step that holds its content now", () => {
+    const to = (tab: string) => resolveStep(tab);
+    expect(to("canvas")).toEqual({ step: "brief", redirect: true });
+    expect(to("overview").step).toBe("brief");
+    expect(to("journeys").step).toBe("brief");
+    expect(to("documents").step).toBe("requirements");
+    expect(to("designs").step).toBe("design");
+    expect(to("development").step).toBe("build");
+    expect(to("testing").step).toBe("build");
+    expect(to("live").step).toBe("build");
+    expect(to("ai-reviews").step).toBe("build");
+    expect(to("approvals").step).toBe("launch");
+    expect(to("review").step).toBe("launch");
+    for (const t of ["canvas", "overview", "journeys", "documents", "designs", "development", "testing", "live", "ai-reviews", "approvals", "review"]) expect(to(t).redirect).toBe(true);
   });
+
+  it("turns the old Tasks and Activity tabs into the side panel, on the brief", () => {
+    expect(resolveStep("tasks")).toEqual({ step: "brief", panel: "tasks", redirect: true });
+    expect(resolveStep("issues")).toEqual({ step: "brief", panel: "tasks", redirect: true });
+    expect(resolveStep("activity")).toEqual({ step: "brief", panel: "activity", redirect: true });
+  });
+
   it("never lands on an empty page for an address it does not know", () => {
-    expect(resolveSection("nonsense")).toEqual({ section: "canvas", redirect: true });
+    expect(resolveStep("nonsense")).toEqual({ step: "brief", redirect: true });
   });
 });
 
@@ -25,10 +39,10 @@ describe("campaign addresses", () => {
   const id = "5a1b6c1e-0000-4000-8000-0000000000a1";
   it("builds and parses them", () => {
     expect(campaignPath(id)).toBe(`/campaigns/${id}`);
-    expect(campaignPath(id, "testing")).toBe(`/campaigns/${id}/testing`);
-    expect(parseCampaignPath(`/campaigns/${id}/review`)).toEqual({ id, section: "review" });
-    expect(parseCampaignPath(`/campaigns/${id}/ai-reviews`)).toEqual({ id, section: "review" });
-    expect(parseCampaignPath(`/campaigns/${id}`)).toEqual({ id, section: "canvas" });
+    expect(campaignPath(id, "build")).toBe(`/campaigns/${id}/build`);
+    expect(parseCampaignPath(`/campaigns/${id}/launch`)).toEqual({ id, step: "launch" });
+    expect(parseCampaignPath(`/campaigns/${id}/ai-reviews`)).toEqual({ id, step: "build" });
+    expect(parseCampaignPath(`/campaigns/${id}`)).toEqual({ id, step: "brief" });
     expect(parseCampaignPath("/projects")).toBeNull();
     expect(parseCampaignPath("/campaigns")).toBeNull();
   });

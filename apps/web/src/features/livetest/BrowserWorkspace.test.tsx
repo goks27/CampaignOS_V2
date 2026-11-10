@@ -44,7 +44,9 @@ describe("browserModel", () => {
   it("turns keys into input and ignores shortcuts", () => {
     expect(keyInput({ key: "Enter" })).toEqual({ type: "key", key: "Enter" });
     expect(keyInput({ key: "a" })).toEqual({ type: "text", text: "a" });
-    expect(keyInput({ key: "v", ctrlKey: true })).toEqual({ type: "key", key: "Control+v" });
+    expect(keyInput({ key: "a", ctrlKey: true })).toEqual({ type: "key", key: "Control+a" });
+    // copy, cut and paste use the dashboard's own clipboard, so they are not sent as keys
+    for (const k of ["c", "x", "v"]) expect(keyInput({ key: k, ctrlKey: true })).toBeNull();
     expect(keyInput({ key: "r", ctrlKey: true })).toBeNull();
     expect(keyInput({ key: "F5" })).toBeNull();
   });

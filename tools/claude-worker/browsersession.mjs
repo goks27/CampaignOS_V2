@@ -65,7 +65,7 @@ export async function checkEmbeddable(url, { guard, embedder = "", fetchImpl = f
   return { embeddable: null, reason: "Not checked: too many redirects." };
 }
 
-export function createSessions({ openBrowser = (guard, httpCredentials, opts) => new Browser(guard, httpCredentials, opts).open(), makeGuard = (allowed) => new NetGuard(allowed), now = () => Date.now(), idleMs = 10 * 60_000, maxMs = 60 * 60_000, sweepMs = 15_000, log = () => {} } = {}) {
+export function createSessions({ openBrowser = (guard, httpCredentials, opts) => new Browser(guard, httpCredentials, { ...opts, verify: true }).open(), makeGuard = (allowed) => new NetGuard(allowed), now = () => Date.now(), idleMs = 10 * 60_000, maxMs = 60 * 60_000, sweepMs = 15_000, log = () => {} } = {}) {
   let cur = null; // the one session
   const sweeper = setInterval(() => {
     if (!cur || cur.status === "closed") return;
@@ -84,7 +84,7 @@ export function createSessions({ openBrowser = (guard, httpCredentials, opts) =>
 
   const publicState = (s) => ({
     id: s.id, status: s.status, error: s.error, errorCode: s.errorCode, url: s.nav.url, title: s.nav.title, loading: s.nav.loading, canGoBack: s.nav.canGoBack, canGoForward: s.nav.canGoForward,
-    captcha: s.captcha, paused: Boolean(s.paused), headed: Boolean(s.headed), device: s.device, viewport: { width: s.viewport.width, height: s.viewport.height }, locked: s.locked, lockedBy: s.lockedBy, startedAt: s.startedAt,
+    captcha: s.captcha, paused: Boolean(s.paused), headed: Boolean(s.headed), isolation: s.browser?.isolation ? { engine: s.browser.isolation.engine, version: s.browser.isolation.version, incognito: s.browser.isolation.incognito, temporaryProfile: s.browser.isolation.temporaryProfile, usesNormalProfile: s.browser.isolation.usesNormalProfile, verified: s.browser.isolation.verified, detail: s.browser.isolation.detail } : null, device: s.device, viewport: { width: s.viewport.width, height: s.viewport.height }, locked: s.locked, lockedBy: s.lockedBy, startedAt: s.startedAt,
     campaignId: s.campaign.id, campaignName: s.campaign.name, startUrl: s.startUrl, frameSeq: s.frameSeq, closedReason: s.closedReason ?? null,
     counts: { events: s.events.length, errors: s.events.filter((e) => e.severity !== "info").length, console: s.consoleLog.length, network: s.network.length },
   });
@@ -351,9 +351,22 @@ export function createSessions({ openBrowser = (guard, httpCredentials, opts) =>
         case "wheel": await s.page.mouse.move(x, y); await s.page.mouse.wheel(Math.max(-2000, Math.min(2000, Number(msg.dx) || 0)), Math.max(-2000, Math.min(2000, Number(msg.dy) || 0))); break;
         case "key": { const k = String(msg.key ?? ""); if (!KEYS.has(k) && !/^[A-Za-z0-9]$/.test(k) && !/^(Control|Meta)\+[acvxzACVXZ]$/.test(k)) throw new SessionError("That key is not supported.", "bad_request"); await s.page.keyboard.press(k === "Space" ? " " : k); break; }
         case "text": await s.page.keyboard.type(String(msg.text ?? "").slice(0, 500)); break;
+        // Pasted text from the dashboard's own clipboard: inserted in one go (newlines kept), not key by key.
+        case "paste": await s.page.keyboard.insertText(String(msg.text ?? "").slice(0, 10000)); break;
         default: throw new SessionError("Unknown input.", "bad_request");
       }
       return true;
+    },
+
+    /** The text the person has selected in the page (or in a field), so the dashboard can put it on their own clipboard. Read-only; only on an explicit copy. */
+    async selection(token) {
+      const s = need(token); gate(s, false); touch(s);
+      const text = await s.page.evaluate(() => {
+        const a = document.activeElement;
+        if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && typeof a.selectionStart === "number" && a.selectionEnd > a.selectionStart && a.type !== "password") return a.value.slice(a.selectionStart, a.selectionEnd);
+        return String(getSelection() ?? "");
+      });
+      return { text: String(text).slice(0, 10000) };
     },
 
     /** A picture of the page as it is now, kept as evidence with an event. */

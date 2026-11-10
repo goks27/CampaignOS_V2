@@ -58,7 +58,8 @@ function parseAuto(body) {
   const maxPages = Math.max(1, Math.min(30, Number(body?.max_pages) || 10));
   // Every device by default. A list of device ids narrows it (used by tests and by anything that really wants fewer).
   const deviceIds = Array.isArray(body?.devices) ? body.devices.map(String).filter((id) => DEVICE_BY_ID.has(id)).slice(0, 10) : [];
-  return { mode: "auto", deviceIds, url: url.toString(), device: "All devices", steps: [], inputs: {}, creds, maxPages, campaign: { id: str(body?.campaign_id, 60), name: str(body?.campaign_name, 120) },
+  const includeDesktop = body?.include_desktop === true;
+  return { mode: "auto", deviceIds, includeDesktop, url: url.toString(), device: "All devices", steps: [], inputs: {}, creds, maxPages, campaign: { id: str(body?.campaign_id, 60), name: str(body?.campaign_name, 120) },
     allowed: [...new Set([...allowed, url.hostname.toLowerCase()])] };
 }
 
@@ -295,7 +296,7 @@ export function createLiveTest({ live = sharedLive, sessions = sharedSessions, o
       // 2. The check itself, the same one a queued Site check runs, on every device.
       let captureNo = 0;
       const run = {
-        brief: { input: { staging_url: r.url, limits: { site_check_max_pages: r.maxPages, ...(r.deviceIds?.length ? { site_check_devices: r.deviceIds } : {}) } }, dir: os.tmpdir() }, base: r.url, paths: ["/"], creds: r.creds,
+        brief: { input: { staging_url: r.url, limits: { site_check_max_pages: r.maxPages, ...(r.deviceIds?.length ? { site_check_devices: r.deviceIds } : {}), ...(r.includeDesktop ? { site_check_desktop: true } : {}) } }, dir: os.tmpdir() }, base: r.url, paths: ["/"], creds: r.creds,
         findings: [], captures: [], noModel: true, step: progress, addCapture: async () => `c${captureNo++}`,
         // what a registration form asks for (a mobile number, an OTP): the run pauses and asks, the answer goes straight into the page
         ask: async (label, { secret = false } = {}) => {

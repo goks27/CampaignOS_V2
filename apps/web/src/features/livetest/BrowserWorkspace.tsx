@@ -1,12 +1,12 @@
 import * as React from "react";
-import { AlertTriangle, PanelLeftClose, PanelLeftOpen, ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ExternalLink, ListTodo, Loader2, Lock, Maximize2, Minimize2, MonitorPlay, RotateCw, ShieldAlert, WifiOff, X, XCircle } from "lucide-react";
+import { AlertTriangle, ShieldCheck, PanelLeftClose, PanelLeftOpen, ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ExternalLink, ListTodo, Loader2, Lock, Maximize2, Minimize2, MonitorPlay, RotateCw, ShieldAlert, WifiOff, X, XCircle } from "lucide-react";
 import { Button, Card, Checkbox, Select, Tabs } from "@/components/ui";
 import { StatusDot } from "@/components/common";
 import { useToast } from "@/components/toast";
 import { useAction } from "@/hooks/useAction";
 import { cn } from "@/lib/utils";
 import { tasksService } from "@/services/tasks";
-import type { BrowserEvent, BrowserPreset, LiveTestState } from "@/services/connector";
+import { browserService, type BrowserEvent, type BrowserPreset, type LiveTestState } from "@/services/connector";
 import { CATEGORY_LABEL, contentRect, filterEvents, isProblem, keyInput, normalizeAddress, stateMessage, taskFromEvent, timeOnly, toFraction, type Category } from "./browserModel";
 import type { Browser } from "./useBrowserSession";
 
@@ -64,13 +64,26 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
   const onClick = (e: React.MouseEvent) => { if (!canType) return; shell.current?.focus(); const p = point(e); if (p) browser.send({ type: "click", ...p, count: e.detail >= 3 ? 3 : e.detail === 2 ? 2 : 1 }); };
   const onContext = (e: React.MouseEvent) => { e.preventDefault(); if (!canType) return; const p = point(e); if (p) browser.send({ type: "click", ...p, button: "right" }); };
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // Copy and cut: read the text selected in the page and put it on YOUR clipboard. Paste is handled by onPaste below.
+    if ((e.ctrlKey || e.metaKey) && /^[cx]$/i.test(e.key)) {
+      if (!usable || !browser.token) return;
+      e.preventDefault();
+      const cut = e.key.toLowerCase() === "x" && canType;
+      void (async () => {
+        const text = await browserService.selection(browser.token!);
+        if (!text) { setProblem("Nothing is selected in the page to copy."); return; }
+        try { await navigator.clipboard.writeText(text); setProblem(null); if (cut) browser.send({ type: "key", key: "Backspace" }); }
+        catch { setProblem("Your browser did not allow copying. Allow clipboard access for this site and try again."); }
+      })();
+      return;
+    }
     if (!canType) return;
     const k = keyInput(e);
     if (!k) return;
     e.preventDefault();
     browser.send(k);
   };
-  const onPaste = (e: React.ClipboardEvent) => { if (!canType) return; const t = e.clipboardData.getData("text"); if (t) { e.preventDefault(); browser.send({ type: "text", text: t.slice(0, 500) }); } };
+  const onPaste = (e: React.ClipboardEvent) => { if (!canType) return; const t = e.clipboardData.getData("text"); if (t) { e.preventDefault(); browser.send({ type: "paste", text: t.slice(0, 10000) }); } };
   // wheel must be a non-passive listener to stop the dashboard scrolling while the page does
   const pending = React.useRef({ dx: 0, dy: 0, fx: 0, fy: 0, t: 0 as unknown as ReturnType<typeof setTimeout> | 0 });
   React.useEffect(() => {
@@ -110,6 +123,11 @@ export function BrowserPane({ browser, presets, offline, embedNote, testing, onC
           <span className="min-w-0 flex-1 truncate" data-testid="tab-title">{s?.title || (url ? new URL(url, "http://x").hostname : "New tab")}</span>
           {browser.token && <button className="shrink-0 rounded p-0.5 text-muted hover:bg-hover hover:text-text" aria-label="Close preview" title="Close the preview" onClick={() => void browser.close()}><X className="size-3.5" /></button>}
         </div>
+        {s?.isolation && (
+          <span className={cn("mb-1 ml-auto flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px]", s.isolation.verified ? "bg-st-green/15 text-st-green" : "bg-st-amber/15 text-st-amber")} title={s.isolation.detail} data-testid="isolation" data-verified={s.isolation.verified}>
+            <ShieldCheck className="size-3" aria-hidden />{s.isolation.verified ? "Incognito" : "Isolation not confirmed"} · {s.isolation.engine.replace(/ \(.*\)$/, "")}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1 border-b border-line bg-surface px-2 py-1.5" data-testid="browser-toolbar">
         <Button size="sm" variant="ghost" aria-label="Back" disabled={!usable || locked || !s?.canGoBack} onClick={() => void run(() => browser.command({ type: "back" }))}><ArrowLeft /></Button>

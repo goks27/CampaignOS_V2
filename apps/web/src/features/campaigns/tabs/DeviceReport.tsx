@@ -6,7 +6,6 @@ import { Card } from "@/components/ui";
 import { Section, StatusDot, Table, Td, Th, Tr } from "@/components/common";
 import { cn, formatDateTime } from "@/lib/utils";
 import { siteNotes, type DeviceRow, type SiteNotes } from "@/lib/devices";
-import { campaignPath } from "@/lib/nav";
 import { jobsService } from "@/services/jobs";
 import type { CampaignWithRelations } from "@/services/campaigns";
 
@@ -61,7 +60,7 @@ export function DeviceReport({ campaign: c }: { campaign: CampaignWithRelations 
         <p className="text-sm text-text-2">
           {job.finished_at ? `${formatDateTime(job.finished_at)} · ` : ""}{notes.pages_checked ?? 0} page{notes.pages_checked === 1 ? "" : "s"} on {notes.devices_tested ?? devices.length} devices
           {" · "}{withIssues ? `${withIssues} of ${devices.length} devices have issues` : "no issues on any device"}.
-          {" "}<Link className="text-accent hover:underline" to={campaignPath(c.id, "review")}>Open the findings</Link>
+          {" "}<Link className="text-accent hover:underline" to={`/inbox?type=findings&campaign=${c.id}`}>Open the findings</Link>
         </p>
         {notes.login && <LoginNote login={notes.login} />}
         {notes.stopped_early && <p className="text-sm text-text-2">The check stopped early: it {notes.stopped_early}.</p>}

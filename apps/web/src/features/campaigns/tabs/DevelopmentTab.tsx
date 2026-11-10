@@ -1,3 +1,4 @@
+import { autoReviewNote } from "@/lib/autoReview";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2, FlaskConical, ArrowDown, ArrowUp, Pencil } from "lucide-react";
@@ -46,7 +47,7 @@ export function SubmissionDialog({ campaign: c, onClose, defaultJourney }: { cam
     version_label: version, staging_url: url, developer_id: developer || null,
     devices: ["desktop", "mobile"], page_paths: paths.split(/[\n,]+/).map((p) => p.trim()).filter(Boolean),
     notes: notes || null,
-  }), { invalidate: [qk.dev(c.id)], success: (r) => `Build ${r.submission.version_label} submitted${r.autoQueued ? `; ${r.autoQueued} check(s) started` : ". Press Test now to check it"}.`, onSuccess: onClose });
+  }), { invalidate: [qk.dev(c.id)], success: (r) => `Build ${r.submission.version_label} submitted. ${autoReviewNote("build", r.autoQueued)}`, onSuccess: onClose });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Submit staging build" className="max-w-2xl"

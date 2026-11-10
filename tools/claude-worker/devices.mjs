@@ -40,16 +40,22 @@ export const DEVICES = [
   phone("galaxy-tab-s4", "Galaxy Tab S4 (Android tablet)", "Android tablet", "Galaxy Tab S4"),
 ];
 
-export const DEVICE_BY_ID = new Map(DEVICES.map((d) => [d.id, d]));
+/** Desktop is an extra, switched on per run. Campaigns are played on phones and tablets, so it is never part of the default. */
+export const OPTIONAL_DEVICES = [
+  { id: "desktop", label: "Desktop 1440", family: "Desktop", touch: false, opts: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
+  { id: "laptop", label: "Laptop 1366", family: "Desktop", touch: false, opts: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 } },
+];
+export const DEVICE_BY_ID = new Map([...DEVICES, ...OPTIONAL_DEVICES].map((d) => [d.id, d]));
 
 /** The first device finds the pages; the others open the same ones. */
 export const PRIMARY_DEVICE = DEVICES[0];
 
 /** Which devices to run: all of them, or a chosen subset by id (always keeping the primary one). */
-export function pickDevices(ids) {
-  if (!Array.isArray(ids) || !ids.length) return DEVICES;
+export function pickDevices(ids, { desktop = false } = {}) {
+  const extra = desktop ? OPTIONAL_DEVICES : [];
+  if (!Array.isArray(ids) || !ids.length) return [...DEVICES, ...extra];
   const want = new Set(ids.map(String));
-  return DEVICES.filter((d) => d === PRIMARY_DEVICE || want.has(d.id));
+  return [...DEVICES.filter((d) => d === PRIMARY_DEVICE || want.has(d.id)), ...extra];
 }
 
 /** Small screens: sideways scrolling and the viewport tag matter most here. */

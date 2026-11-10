@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { ChevronDown, FlaskConical, Inbox, LogOut, Radio, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Users, CalendarRange, BarChart3, FolderKanban } from "lucide-react";
+import { ChevronDown, FlaskConical, Home, Inbox, LogOut, Radio, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, FolderKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
@@ -21,15 +21,18 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
   const workspaces = continueList((campaigns ?? []).filter((c) => c.status === "active"), recent, 12);
 
   const item = ({ isActive }: { isActive: boolean }) => cn("group relative flex items-center gap-2.5 rounded-item px-2 py-1.5 text-sm text-text-2 hover:bg-hover hover:text-text", collapsed && "justify-center", isActive && "bg-active font-medium text-text");
+  // Four places to go. Playground and Live test are reached from Home and from the search (Ctrl+K); Timeline and Reports are on Home; Team is in Settings.
   const NAV = [
-    { to: "/projects", label: "Projects", icon: FolderKanban },
-    { to: "/playground", label: "Playground", icon: FlaskConical }, { to: "/live-test", label: "Live test", icon: Radio },
+    { to: "/home", label: "Home", icon: Home, count: 0 },
+    { to: "/projects", label: "Campaigns", icon: FolderKanban, count: 0 },
+    { to: "/inbox", label: "Inbox", icon: Inbox, count: inbox },
+    { to: "/settings", label: "Settings", icon: Settings, count: 0 },
   ];
 
   return (
     <div className="flex h-full flex-col">
       <div className={cn("flex h-[52px] items-center px-3", collapsed ? "justify-center" : "justify-between")}>
-        <Link to="/projects" aria-label="Journey, go to projects"><Wordmark size={collapsed ? 22 : 24} markOnly={collapsed} /></Link>
+        <Link to="/home" aria-label="Journey, go to home"><Wordmark size={collapsed ? 22 : 24} markOnly={collapsed} /></Link>
         {!collapsed && <button onClick={onToggle} aria-label="Collapse the sidebar" title="Collapse the sidebar" className="rounded-ctl p-1 text-muted hover:bg-hover hover:text-text"><PanelLeftClose className="size-4" /></button>}
       </div>
       {collapsed && <button onClick={onToggle} aria-label="Expand the sidebar" title="Expand the sidebar" className="mx-auto mb-1 rounded-ctl p-1 text-muted hover:bg-hover hover:text-text"><PanelLeftOpen className="size-4" /></button>}
@@ -45,6 +48,7 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
           <NavLink key={n.to} to={n.to} className={item} title={collapsed ? n.label : undefined}>
             <n.icon className="size-4 shrink-0" />
             {!collapsed && <span className="flex-1">{n.label}</span>}
+            {n.count > 0 && (collapsed ? <span className="absolute right-1 top-1 size-2 rounded-full bg-accent" aria-label={`${n.count} waiting`} /> : <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num" aria-label={`${n.count} waiting`}>{n.count}</span>)}
           </NavLink>
         ))}
       </nav>
@@ -76,16 +80,13 @@ export function Rail({ onSearch, collapsed, onToggle, recent }: { onSearch: () =
         )}
         <DropdownMenu>
           <DropdownMenuTrigger className={cn("flex w-full items-center gap-2 rounded-item px-1.5 py-1 text-left hover:bg-hover", collapsed && "justify-center")} aria-label="Account menu">
-            <span className="relative"><Avatar name={me?.fullName} size={26} />{inbox > 0 && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-side bg-accent" aria-label={`${inbox} waiting in your inbox`} data-testid="inbox-dot" />}</span>
+            <span className="relative"><Avatar name={me?.fullName} size={26} /></span>
             {!collapsed && <><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{me?.fullName}</span><span className="block truncate text-xs text-muted">{me?.role ? ROLE_LABEL[me.role] : ""}</span></span><ChevronDown className="size-3.5 text-muted" /></>}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[220px]">
             <DropdownMenuLabel>{me?.workspaceName ?? "Workspace"}</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => navigate("/inbox")}><Inbox /><span className="flex-1">Inbox</span>{inbox ? <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-[rgb(var(--on-accent))] num" data-testid="inbox-count">{inbox > 99 ? "99+" : inbox}</span> : null}</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate("/team")}><Users />Team</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate("/timeline")}><CalendarRange />Timeline</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate("/reports")}><BarChart3 />Reports</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate("/settings")}><Settings />Settings</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate("/playground")}><FlaskConical />Quick check</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate("/live-test")}><Radio />Live test</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => void signOut()}><LogOut />Sign out</DropdownMenuItem>
           </DropdownMenuContent>

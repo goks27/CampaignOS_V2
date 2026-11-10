@@ -12,18 +12,17 @@ const show = () => render(<MemoryRouter><Rail onSearch={() => undefined} collaps
 beforeEach(() => { waiting = 0; });
 
 describe("the sidebar", () => {
-  it("keeps Projects as the main item, with Playground and Live test, and no Home, Tasks or Inbox", () => {
+  it("has four items: Home, Campaigns, Inbox and Settings", () => {
     show();
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect([...nav.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Projects", "Playground", "Live test"]);
-    expect(screen.queryByText("Home")).toBeNull();
-    expect(screen.queryByText("Tasks")).toBeNull();
-    expect(screen.queryByText("My Inbox")).toBeNull();
+    expect([...nav.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["Home", "Campaigns", "Inbox", "Settings"]);
+    expect([...nav.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/home", "/projects", "/inbox", "/settings"]);
+    for (const gone of ["Tasks", "Timeline", "Reports", "Team", "Playground"]) expect(nav).not.toHaveTextContent(gone);
   });
 
-  it("the logo opens Projects", () => {
+  it("the logo opens Home", () => {
     show();
-    expect(screen.getByRole("link", { name: /go to projects/i })).toHaveAttribute("href", "/projects");
+    expect(screen.getByRole("link", { name: /go to home/i })).toHaveAttribute("href", "/home");
   });
 
   it("lists the campaigns underneath", () => {
@@ -31,14 +30,14 @@ describe("the sidebar", () => {
     expect(screen.getByText("Gold Drop")).toBeInTheDocument();
   });
 
-  it("shows a dot on the avatar only when something is waiting in the inbox", () => {
+  it("shows how many are waiting on the Inbox item, and nothing when none are", () => {
     show();
-    expect(screen.queryByTestId("inbox-dot")).toBeNull();
+    expect(screen.queryByLabelText(/waiting/)).toBeNull();
   });
 
-  it("the dot says how many are waiting", () => {
+  it("the Inbox item says how many are waiting", () => {
     waiting = 3;
     show();
-    expect(screen.getByTestId("inbox-dot")).toHaveAttribute("aria-label", "3 waiting in your inbox");
+    expect(screen.getByLabelText("3 waiting")).toHaveTextContent("3");
   });
 });

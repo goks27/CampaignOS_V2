@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/common";
 import { useToast, friendly } from "@/components/toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { jobsService } from "@/services/jobs";
+import { progressService, type ReviewAction } from "@/services/progress";
 import { connectorService } from "@/services/connector";
 import { REVIEW_TYPE_LABEL, type ReviewType } from "@/lib/labels";
 import { qk, useWorkerState } from "@/hooks/queries";
@@ -59,4 +60,47 @@ export function RunReviewButton({ campaignId, reviewType: type, source, label, .
       {dialog}
     </>
   );
+}
+
+export const ACTION_LABEL: Record<ReviewAction, string> = { check_sow: "Check SOW", review_designs: "Review designs", test_build: "Test build" };
+const CHECK_LABEL: Record<string, string> = { sow_analysis: "SOW analysis", sow_vs_design: "SOW vs design", design_consistency: "design consistency", design_vs_development: "design vs build", functional_qa: "scenarios", sow_vs_development: "SOW vs build", site_check: "site check" };
+
+/** The three review actions. Each one queues every check that applies and says plainly why it skipped the others. */
+export function useRunReviewAction(campaignId: string) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [pending, setPending] = React.useState<{ action: ReviewAction; source: Record<string, string> } | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const run = React.useCallback(async (action: ReviewAction, source: Record<string, string>, runAgain = false) => {
+    setBusy(true);
+    try {
+      const out = await progressService.review(campaignId, action, source, runAgain);
+      const queued = out.filter((o) => o.status === "queued");
+      const skipped = out.filter((o) => o.status === "skipped");
+      if (!queued.length && skipped.some((o) => o.reason?.startsWith("This exact content"))) { setPending({ action, source }); return; }
+      const started = queued.length ? await connectorService.wake() : false;
+      const said = queued.length
+        ? `${ACTION_LABEL[action]}: ${queued.map((o) => CHECK_LABEL[o.type] ?? o.type).join(", ")} ${started ? "started" : "queued. The Claude connector is not running on this PC; start it with npm run claude and they run"}.`
+        : `${ACTION_LABEL[action]}: nothing to run yet.`;
+      const why = skipped.map((o) => `${CHECK_LABEL[o.type] ?? o.type}: ${o.reason}`).join(" ");
+      if (queued.length) toast.success(why ? `${said} Skipped: ${why}` : said); else toast.error(why ? `${said} ${why}` : said);
+      void qc.invalidateQueries({ queryKey: ["jobs"] }); void qc.invalidateQueries({ queryKey: ["progress"] }); void qc.invalidateQueries({ queryKey: ["sow"] }); void qc.invalidateQueries({ queryKey: qk.connector });
+      setPending(null);
+    } catch (e) {
+      toast.error(e, `Could not run ${ACTION_LABEL[action].toLowerCase()}`);
+    } finally { setBusy(false); }
+  }, [campaignId, qc, toast]);
+
+  const dialog = (
+    <ConfirmDialog open={Boolean(pending)} onOpenChange={(o) => !o && setPending(null)} title="Already checked"
+      body={<>This exact content was already checked. Running it again uses Claude’s time and may produce duplicate findings. Run again anyway?</>}
+      confirmLabel="Run again" loading={busy} onConfirm={() => pending && void run(pending.action, pending.source, true)} />
+  );
+  return { run, busy, dialog };
+}
+
+export function ReviewActionButton({ campaignId, action, source, label, ...props }: { campaignId: string; action: ReviewAction; source: Record<string, string>; label?: string } & Omit<ButtonProps, "onClick" | "type">) {
+  const { run, busy, dialog } = useRunReviewAction(campaignId);
+  return (<><Button loading={busy} onClick={() => void run(action, source)} {...props}><Play />{label ?? ACTION_LABEL[action]}</Button>{dialog}</>);
 }

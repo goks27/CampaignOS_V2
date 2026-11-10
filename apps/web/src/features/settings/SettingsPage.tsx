@@ -1,7 +1,9 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Cpu, HardDrive, ShieldCheck, Zap } from "lucide-react";
-import { Button, Card, Checkbox, Field, Input } from "@/components/ui";
+import { useSearchParams } from "react-router-dom";
+import { Button, Card, Checkbox, Field, Input, Tabs } from "@/components/ui";
+import { TeamPage } from "@/features/team/TeamPage";
 import { KeyValue, PageHeader, Section, StatusDot, LoadingRows } from "@/components/common";
 import { REVIEW_TYPE_LABEL, type ReviewType } from "@/lib/labels";
 import { formatBytes, timeAgo } from "@/lib/utils";
@@ -24,24 +26,29 @@ const LIMIT_FIELDS: { key: keyof Limits; label: string; hint: string; min: numbe
   { key: "job_timeout_seconds", label: "Job timeout (s)", hint: "No heartbeat for this long → retried or failed", min: 300, max: 7200 },
 ];
 
+type SettingsTab = "workspace" | "team" | "ai" | "automation" | "storage";
+const TAB_IDS: SettingsTab[] = ["workspace", "team", "ai", "automation", "storage"];
+
+/** Settings, in five tabs: Workspace, Team, AI worker, Automation & limits, Storage. */
 export function SettingsPage() {
   const { isAdmin, isManager, me } = useAuth();
   const { data: s, isLoading } = useSettings();
   const { theme, toggle } = useTheme();
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("tab") as SettingsTab | null;
+  const tab: SettingsTab = asked && TAB_IDS.includes(asked) && (asked !== "storage" || isManager) ? asked : "workspace";
   if (isLoading) return <LoadingRows />;
+  const tabs: { value: SettingsTab; label: string }[] = [
+    { value: "workspace", label: "Workspace" }, { value: "team", label: "Team" }, { value: "ai", label: "AI worker" }, { value: "automation", label: "Automation & limits" },
+    ...(isManager ? [{ value: "storage" as const, label: "Storage" }] : []),
+  ];
   return (
     <>
       <PageHeader title="Settings" description={isAdmin ? "Workspace configuration. Changes apply to everyone." : "Only Admins can change workspace settings."} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
+      <Tabs className="mb-4" value={tab} onChange={(v) => setParams(v === "workspace" ? {} : { tab: v })} tabs={tabs} />
+      {tab === "workspace" && (
+        <div className="max-w-2xl">
           <WorkspaceName />
-          <WorkerSection />
-          {s && <AutomationSection />}
-          {s && <DomainsSection />}
-        </div>
-        <div>
-          {s && <LimitsSection />}
-          {isManager && <StorageSection />}
           <Section title="Appearance">
             <Card className="flex items-center justify-between p-4 text-sm">
               <span>Theme: {theme === "dark" ? "Dark" : "Light"} <span className="text-xs text-muted">(saved in this browser)</span></span>
@@ -50,7 +57,16 @@ export function SettingsPage() {
           </Section>
           <p className="text-xs text-muted">Signed in as {me?.email}.</p>
         </div>
-      </div>
+      )}
+      {tab === "team" && <TeamPage embedded />}
+      {tab === "ai" && <div className="max-w-2xl"><WorkerSection /></div>}
+      {tab === "automation" && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div>{s && <AutomationSection />}{s && <DomainsSection />}</div>
+          <div>{s && <LimitsSection />}</div>
+        </div>
+      )}
+      {tab === "storage" && isManager && <div className="max-w-2xl"><StorageSection /></div>}
     </>
   );
 }

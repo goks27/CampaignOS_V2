@@ -60,6 +60,10 @@ export const requirementsService = {
   async update(id: string, patch: Update<"requirements">) {
     return must(await supabase.from("requirements").update(patch).eq("id", id).select().single());
   },
+  /** Requirements a manager has to clarify, across every campaign the person can see. */
+  async needingClarification() {
+    return must(await supabase.from("requirements").select("id, ref, title, campaign_id, updated_at, campaigns(name)").eq("status", "needs_clarification").order("updated_at", { ascending: false }).limit(50)) as unknown as { id: string; ref: string; title: string; campaign_id: string; updated_at: string; campaigns: { name: string } | null }[];
+  },
   async setStatus(ids: string[], status: Requirement["status"]) {
     must(await supabase.from("requirements").update({ status }).in("id", ids));
   },

@@ -21,12 +21,14 @@ import { assistantTurn, BadRequest, MAX_BODY_BYTES } from "./assistant.mjs";
 import { MAX_PLAYGROUND_BYTES, playgroundCheck } from "./playground.mjs";
 import { live as sharedLive } from "./live.mjs";
 import { sessions as sharedSessions, SessionError } from "./browsersession.mjs";
+import { runApiCheck, ApiCheckError } from "./apirunner.mjs";
+import { NetGuard } from "./netguard.mjs";
 import { liveTest as sharedLiveTest, BadRequest as LiveTestBadRequest, MAX_BODY_BYTES as LIVETEST_BYTES } from "./livetest.mjs";
 
 const DEFAULT_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 const HOST_OK = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 
-export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, liveTest = sharedLiveTest, sessions = sharedSessions, log = console.log }) {
+export function createConnector({ cfg, db, analyseJob = analyse, claimNext = claimJob, assistant = assistantTurn, playground = playgroundCheck, claude = { ok: true, version: "" }, live = sharedLive, liveTest = sharedLiveTest, sessions = sharedSessions, apiGuard = (hosts) => new NetGuard(hosts), log = console.log }) {
   const origins = new Set([...DEFAULT_ORIGINS, ...cfg.origins]);
   const state = { busy: false, job: null, last: null, startedAt: new Date().toISOString() };
   let draining = false, again = false, timer = null, hb = null, assistantBusy = false, playgroundBusy = false;
@@ -179,6 +181,7 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
             if (sub === "input") { await sessions.input(tk, body); return json(200, { ok: true }); }
             switch (body?.type) {
               case "navigate": return json(200, await sessions.navigate(tk, body.url));
+              case "selection": return json(200, await sessions.selection(tk));
               case "reload": return json(200, await sessions.reload(tk));
               case "back": return json(200, await sessions.back(tk));
               case "forward": return json(200, await sessions.forward(tk));
@@ -192,6 +195,18 @@ export function createConnector({ cfg, db, analyseJob = analyse, claimNext = cla
         }
       } catch (e) { return fail(e); }
       return json(404, { error: "Not found" });
+    }
+    // API checks: one request to a staging endpoint, asserted without a browser or a model. Same network rules as every test.
+    if (req.method === "POST" && url.pathname === "/apitest/run") {
+      if (Number(req.headers["content-length"] || 0) > 150_000) { res.setHeader("Connection", "close"); return json(413, { error: "Request is too large." }); }
+      if (!String(req.headers["content-type"] || "").startsWith("application/json")) return json(415, { error: "Send JSON." });
+      readBody(req, 150_000).then(async (body) => {
+        const request = body?.request ?? body;
+        let host = ""; try { host = new URL(String(request?.url ?? "")).hostname.toLowerCase(); } catch { /* parseRequest explains it */ }
+        const allowed = [...new Set([...(Array.isArray(body?.allowed_domains) ? body.allowed_domains.map(String) : []), host].filter(Boolean))];
+        return json(200, await runApiCheck(request, { guard: apiGuard(allowed) }));
+      }).catch((e) => (e instanceof ApiCheckError || e instanceof BadRequest) ? json(400, { error: e.message, code: e.code ?? "bad_request" }) : (log(`api check failed: ${e.message}`), json(500, { error: "The API check failed. Check the connector window." })));
+      return;
     }
     // Live test: a run you start and watch from the dashboard. One at a time, and never while a queued job is running.
     if (req.method === "GET" && url.pathname === "/livetest") return json(200, liveTest.state(url.searchParams.get("run") || undefined));
